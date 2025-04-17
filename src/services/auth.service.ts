@@ -1,53 +1,53 @@
-"use strict";
+'use strict'
 
-import { ObjectId } from "mongodb";
-import { LoginReqBody, RegisterReqBody } from "~/models/requests/user.request";
-import User, { IUser } from "~/models/schemas/user.schema";
-import { envConfig } from "~/constants/config";
-import bcrypt from "bcrypt";
-import { signToken, verifyToken } from "~/utils/token.utils";
-import { Token } from "~/models/schemas/token.schema";
-import { ErrorWithStatus } from "~/utils/error.utils";
-import { TOKEN_MESSAGES, USER_MESSAGES } from "~/constants/messages";
-import HTTP_STATUS_CODES from "~/core/statusCodes";
-import databaseServices from "./database.service";
-import { tokenType, userVerificationStatus } from "~/constants/enums";
-import emailService from "./email.service";
+import { ObjectId } from 'mongodb'
+import { LoginReqBody, RegisterReqBody } from '~/models/requests/user.request'
+import User, { IUser } from '~/models/schemas/user.schema'
+import { envConfig } from '~/constants/config'
+import bcrypt from 'bcrypt'
+import { signToken, verifyToken } from '~/utils/token.utils'
+import { Token } from '~/models/schemas/token.schema'
+import { ErrorWithStatus } from '~/utils/error.utils'
+import { TOKEN_MESSAGES, USER_MESSAGES } from '~/constants/messages'
+import HTTP_STATUS_CODES from '~/core/statusCodes'
+import databaseServices from './database.service'
+import { tokenType, userVerificationStatus } from '~/constants/enums'
+import emailService from './email.service'
 
 class AccessService {
   private signAccessToken({
     user_id,
     verify,
-    role,
+    role
   }: {
-    user_id: string;
-    verify: userVerificationStatus;
-    role: string;
+    user_id: string
+    verify: userVerificationStatus
+    role: string
   }) {
     return signToken({
       payload: {
         user_id,
         token_type: tokenType.AccessToken,
         verify,
-        role,
+        role
       },
       privateKey: envConfig.jwtSecretAccessToken,
       options: {
-        expiresIn: envConfig.accessTokenExpiresIn,
-      },
-    });
+        expiresIn: envConfig.accessTokenExpiresIn
+      }
+    })
   }
 
   private signRefreshToken({
     user_id,
     verify,
     exp,
-    role,
+    role
   }: {
-    user_id: string;
-    verify: userVerificationStatus;
-    exp?: number;
-    role: string;
+    user_id: string
+    verify: userVerificationStatus
+    exp?: number
+    role: string
   }) {
     if (exp) {
       return signToken({
@@ -56,112 +56,112 @@ class AccessService {
           token_type: tokenType.RefreshToken,
           verify,
           exp,
-          role,
+          role
         },
         privateKey: envConfig.jwtSecretRefreshToken,
         options: {
-          expiresIn: exp,
-        },
-      });
+          expiresIn: exp
+        }
+      })
     }
     return signToken({
       payload: {
         user_id,
         token_type: tokenType.RefreshToken,
         verify,
-        role,
+        role
       },
       privateKey: envConfig.jwtSecretRefreshToken,
       options: {
-        expiresIn: envConfig.refreshTokenExpiresIn,
-      },
-    });
+        expiresIn: envConfig.refreshTokenExpiresIn
+      }
+    })
   }
 
   private signEmailVerifyToken({
     user_id,
     verify,
-    role,
+    role
   }: {
-    user_id: string;
-    verify: userVerificationStatus;
-    role: string;
+    user_id: string
+    verify: userVerificationStatus
+    role: string
   }) {
     return signToken({
       payload: {
         user_id,
         token_type: tokenType.EmailVerificationToken,
         verify,
-        role,
+        role
       },
       privateKey: envConfig.jwtSecretEmailVerifyToken,
       options: {
-        expiresIn: envConfig.emailVerifyTokenExpiresIn,
-      },
-    });
+        expiresIn: envConfig.emailVerifyTokenExpiresIn
+      }
+    })
   }
 
   private decodeEmailVerifyToken(email_verify_token: string) {
     return verifyToken({
       token: email_verify_token,
-      secretOrPublickey: envConfig.jwtSecretEmailVerifyToken,
-    });
+      secretOrPublickey: envConfig.jwtSecretEmailVerifyToken
+    })
   }
 
   async decodeRefreshToken(refresh_token: string) {
     return verifyToken({
       token: refresh_token,
-      secretOrPublickey: envConfig.jwtSecretRefreshToken,
-    });
+      secretOrPublickey: envConfig.jwtSecretRefreshToken
+    })
   }
 
   async signAccessAndRefreshToken({
     user_id,
     verify,
-    role,
+    role
   }: {
-    user_id: string;
-    verify: userVerificationStatus;
-    role: string;
+    user_id: string
+    verify: userVerificationStatus
+    role: string
   }) {
     return Promise.all([
       this.signAccessToken({ user_id, verify, role }),
-      this.signRefreshToken({ user_id, verify, role }),
-    ]);
+      this.signRefreshToken({ user_id, verify, role })
+    ])
   }
 
   async register(payload: RegisterReqBody) {
-    const user_id = new ObjectId();
-    const salt = 10;
+    const user_id = new ObjectId()
+    const salt = 10
     // Tạo mã token xác minh email
     const email_verify_token = await this.signEmailVerifyToken({
       user_id: user_id.toString(),
       verify: userVerificationStatus.Unverified,
-      role: "user",
-    });
+      role: 'user'
+    })
     // Mã hóa mật khẩu
-    const hashedPassword = await bcrypt.hash(payload.password, salt);
+    const hashedPassword = await bcrypt.hash(payload.password, salt)
 
     // Tạo người dùng mới với mật khẩu đã mã hóa
     const newUser = new User({
       _id: user_id,
       ...payload,
-      password: hashedPassword,
-    });
+      password: hashedPassword
+    })
 
     // Lưu người dùng mới vào cơ sở dữ liệu
-    await databaseServices.users.insertOne(newUser);
+    await databaseServices.users.insertOne(newUser)
     // Lưu verify email token  và refresh token vào cơ sở dữ liệu
-    const { iat: iat_email_verify_token, exp: exp_email_verify_token } =
-      await this.decodeEmailVerifyToken(email_verify_token);
+    const { iat: iat_email_verify_token, exp: exp_email_verify_token } = await this.decodeEmailVerifyToken(
+      email_verify_token
+    )
 
     const [access_token, refresh_token] = await this.signAccessAndRefreshToken({
       user_id: user_id.toString(),
       verify: userVerificationStatus.Unverified,
-      role: newUser.role,
-    });
-    const { iat: iat_refresh_token, exp: exp_refresh_token } =
-      await this.decodeRefreshToken(refresh_token);
+      role: newUser.role
+    })
+    const { iat: iat_refresh_token, exp: exp_refresh_token } = await this.decodeRefreshToken(refresh_token)
 
     await databaseServices.tokens.insertOne(
       new Token({
@@ -169,61 +169,61 @@ class AccessService {
         token: email_verify_token,
         type: tokenType.EmailVerificationToken,
         expires_at: new Date((exp_email_verify_token as number) * 1000),
-        created_at: new Date((iat_email_verify_token as number) * 1000),
+        created_at: new Date((iat_email_verify_token as number) * 1000)
       })
-    );
+    )
     await databaseServices.tokens.insertOne(
       new Token({
         user_id,
         token: refresh_token,
         type: tokenType.RefreshToken,
         expires_at: new Date((exp_refresh_token as number) * 1000),
-        created_at: new Date((iat_refresh_token as number) * 1000),
+        created_at: new Date((iat_refresh_token as number) * 1000)
       })
-    );
+    )
 
     // Send verification email
-    await emailService.sendVerificationEmail(payload.email, payload.username, email_verify_token);
+    await emailService.sendVerificationEmail(payload.email, payload.username, email_verify_token)
 
-    console.info("Email Verify Token:", email_verify_token);
+    console.info('Email Verify Token:', email_verify_token)
 
     return {
       access_token,
-      refresh_token,
-    };
+      refresh_token
+    }
   }
 
   async login(payload: LoginReqBody) {
-    const { email, password } = payload;
+    const { email, password } = payload
 
     const user = (await databaseServices.users.findOne({ email })) as {
-      _id: { toString: () => string };
-      password: string;
-      verify: userVerificationStatus;
-      role: string;
-    };
+      _id: { toString: () => string }
+      password: string
+      verify: userVerificationStatus
+      role: string
+    }
 
     if (!user) {
       throw new ErrorWithStatus({
         message: USER_MESSAGES.EMAIL_OR_PASSWORD_IS_INCORRECT,
-        status: HTTP_STATUS_CODES.NOT_FOUND,
-      });
+        status: HTTP_STATUS_CODES.NOT_FOUND
+      })
     }
 
-    const isPasswordMatch = await bcrypt.compare(password, user.password);
+    const isPasswordMatch = await bcrypt.compare(password, user.password)
 
     if (!isPasswordMatch) {
       throw new ErrorWithStatus({
         message: USER_MESSAGES.EMAIL_OR_PASSWORD_IS_INCORRECT,
-        status: HTTP_STATUS_CODES.UNPROCESSABLE_ENTITY,
-      });
+        status: HTTP_STATUS_CODES.UNPROCESSABLE_ENTITY
+      })
     }
 
     const [access_token, refresh_token] = await this.signAccessAndRefreshToken({
       user_id: user._id.toString(),
       verify: user.verify,
-      role: user.role || "user",
-    });
+      role: user.role || 'user'
+    })
 
     // câp nhật trạng thái và thời gian đăng nhập cuối cùng
     await databaseServices.users.updateOne(
@@ -231,40 +231,40 @@ class AccessService {
       {
         $set: {
           last_login_time: new Date(),
-          status: "online",
-        },
+          status: 'online'
+        }
       }
-    );
+    )
 
     await databaseServices.tokens.deleteMany({
       user_id: user._id,
-      type: tokenType.RefreshToken,
-    });
+      type: tokenType.RefreshToken
+    })
 
-    const { exp } = await this.decodeRefreshToken(refresh_token);
+    const { exp } = await this.decodeRefreshToken(refresh_token)
 
     await databaseServices.tokens.insertOne(
       new Token({
         user_id: user._id.toString(),
         token: refresh_token,
         type: tokenType.RefreshToken,
-        expires_at: new Date(exp * 1000),
+        expires_at: new Date(exp * 1000)
       })
-    );
+    )
 
     return {
       access_token,
-      refresh_token,
-    };
+      refresh_token
+    }
   }
 
   async googleLogin(user: any) {
-    console.log("user", user);
+    console.log('user', user)
     if (!user) {
       throw new ErrorWithStatus({
         status: HTTP_STATUS_CODES.UNAUTHORIZED,
-        message: USER_MESSAGES.USER_NOT_FOUND,
-      });
+        message: USER_MESSAGES.USER_NOT_FOUND
+      })
     }
 
     // update last login time and status
@@ -273,44 +273,37 @@ class AccessService {
       {
         $set: {
           last_login_time: new Date(),
-          status: "online",
-        },
+          status: 'online'
+        }
       }
-    );
+    )
 
     const [access_token, refresh_token] = await this.signAccessAndRefreshToken({
       user_id: user._id.toString(),
       verify: userVerificationStatus.Verified,
-      role: user.role || "user",
-    });
+      role: user.role || 'user'
+    })
 
     await databaseServices.tokens.deleteMany({ user_id: user._id, type: tokenType.RefreshToken })
 
-    const { exp } = await this.decodeRefreshToken(refresh_token);
+    const { exp } = await this.decodeRefreshToken(refresh_token)
 
     await databaseServices.tokens.insertOne(
       new Token({
         user_id: user._id.toString(),
         token: refresh_token,
         type: tokenType.RefreshToken,
-        expires_at: new Date(exp * 1000),
+        expires_at: new Date(exp * 1000)
       })
-    );
+    )
 
     return {
       access_token,
-      refresh_token,
-    };
+      refresh_token
+    }
   }
 
-  async logout({
-    user_id,
-    refresh_token,
-  }: {
-    user_id: string
-    refresh_token: string
-  }) {
-
+  async logout({ user_id, refresh_token }: { user_id: string; refresh_token: string }) {
     databaseServices.tokens.deleteOne({
       user_id: new ObjectId(user_id) as any,
       token: refresh_token,
@@ -322,7 +315,7 @@ class AccessService {
       {
         $set: {
           last_login_time: new Date(),
-          status: "offline",
+          status: 'offline'
         }
       }
     )
@@ -332,14 +325,14 @@ class AccessService {
     user_id,
     role,
     verify,
-    refresh_token,
+    refresh_token
   }: {
     user_id: string
     role: string
     verify: userVerificationStatus
     refresh_token: string
   }) {
-    const user = await databaseServices.users.findOne({ _id: new ObjectId(user_id) }) as IUser
+    const user = (await databaseServices.users.findOne({ _id: new ObjectId(user_id) })) as IUser
 
     if (!user) {
       throw new ErrorWithStatus({
@@ -369,7 +362,7 @@ class AccessService {
     const [access_token, new_refresh_token] = await this.signAccessAndRefreshToken({
       user_id: user_id,
       verify,
-      role,
+      role
     })
 
     const { exp: new_exp_refresh_token } = await this.decodeRefreshToken(new_refresh_token)
@@ -382,7 +375,7 @@ class AccessService {
         token: new_refresh_token,
         type: tokenType.RefreshToken,
         expires_at: new Date((new_exp_refresh_token as number) * 1000),
-        created_at: new Date((iat_refresh_token as number) * 1000),
+        created_at: new Date((iat_refresh_token as number) * 1000)
       })
     )
 
@@ -394,16 +387,16 @@ class AccessService {
 
   async verifyEmail(email_verify_token: string) {
     // Verify the token
-    const decode_email_verify_token = await this.decodeEmailVerifyToken(email_verify_token);
-    const { user_id } = decode_email_verify_token;
+    const decode_email_verify_token = await this.decodeEmailVerifyToken(email_verify_token)
+    const { user_id } = decode_email_verify_token
 
     // Find the user
-    const user = await databaseServices.users.findOne({ _id: new ObjectId(user_id) }) as IUser;
+    const user = (await databaseServices.users.findOne({ _id: new ObjectId(user_id) })) as IUser
     if (!user) {
       throw new ErrorWithStatus({
         status: HTTP_STATUS_CODES.NOT_FOUND,
         message: USER_MESSAGES.USER_NOT_FOUND
-      });
+      })
     }
 
     // Check if user is already verified
@@ -411,7 +404,7 @@ class AccessService {
       throw new ErrorWithStatus({
         status: HTTP_STATUS_CODES.BAD_REQUEST,
         message: USER_MESSAGES.EMAIL_ALREADY_VERIFIED_BEFORE
-      });
+      })
     }
 
     // Find the verification token
@@ -419,13 +412,13 @@ class AccessService {
       token: email_verify_token,
       user_id: new ObjectId(user_id),
       type: tokenType.EmailVerificationToken
-    });
+    })
 
     if (!tokenInDB) {
       throw new ErrorWithStatus({
         status: HTTP_STATUS_CODES.UNAUTHORIZED,
         message: TOKEN_MESSAGES.TOKEN_NOT_FOUND
-      });
+      })
     }
 
     // Check if token is expired
@@ -433,7 +426,7 @@ class AccessService {
       throw new ErrorWithStatus({
         status: HTTP_STATUS_CODES.UNAUTHORIZED,
         message: TOKEN_MESSAGES.TOKEN_EXPIRED
-      });
+      })
     }
 
     // Update user's verification status
@@ -444,19 +437,19 @@ class AccessService {
           verify: userVerificationStatus.Verified
         }
       }
-    );
+    )
 
     // Remove the verification token
-    await databaseServices.tokens.deleteOne({ _id: tokenInDB._id });
+    await databaseServices.tokens.deleteOne({ _id: tokenInDB._id })
 
     // Generate new access and refresh tokens
     const [access_token, refresh_token] = await this.signAccessAndRefreshToken({
       user_id,
       verify: userVerificationStatus.Verified,
       role: user.role
-    });
+    })
 
-    const { exp } = await this.decodeRefreshToken(refresh_token);
+    const { exp } = await this.decodeRefreshToken(refresh_token)
 
     // Save the new refresh token
     await databaseServices.tokens.insertOne(
@@ -464,25 +457,25 @@ class AccessService {
         user_id: new ObjectId(user_id),
         token: refresh_token,
         type: tokenType.RefreshToken,
-        expires_at: new Date((exp as number) * 1000),
+        expires_at: new Date((exp as number) * 1000)
       })
-    );
+    )
 
     return {
       access_token,
       refresh_token
-    };
+    }
   }
 
   async resendVerificationEmail(email: string) {
     // Find the user by email
-    const user = await databaseServices.users.findOne({ email }) as IUser;
+    const user = (await databaseServices.users.findOne({ email })) as IUser
 
     if (!user) {
       throw new ErrorWithStatus({
         status: HTTP_STATUS_CODES.NOT_FOUND,
         message: USER_MESSAGES.EMAIL_NOT_EXIST
-      });
+      })
     }
 
     // Check if user is already verified
@@ -490,24 +483,24 @@ class AccessService {
       throw new ErrorWithStatus({
         status: HTTP_STATUS_CODES.BAD_REQUEST,
         message: USER_MESSAGES.EMAIL_ALREADY_VERIFIED_BEFORE
-      });
+      })
     }
 
     // Delete any existing verification tokens
     await databaseServices.tokens.deleteMany({
       user_id: user._id,
       type: tokenType.EmailVerificationToken
-    });
+    })
 
     // Generate a new verification token
     const email_verify_token = await this.signEmailVerifyToken({
       user_id: user._id.toString(),
       verify: userVerificationStatus.Unverified,
       role: user.role
-    });
+    })
 
     // Decode the token to get expiration time
-    const { iat, exp } = await this.decodeEmailVerifyToken(email_verify_token);
+    const { iat, exp } = await this.decodeEmailVerifyToken(email_verify_token)
 
     // Save the new token
     await databaseServices.tokens.insertOne(
@@ -518,13 +511,13 @@ class AccessService {
         expires_at: new Date((exp as number) * 1000),
         created_at: new Date((iat as number) * 1000)
       })
-    );
+    )
 
     // Send the verification email
-    await emailService.sendVerificationEmail(user.email, user.username, email_verify_token);
+    await emailService.sendVerificationEmail(user.email, user.username, email_verify_token)
 
-    return { message: USER_MESSAGES.RESEND_VERIFY_EMAIL_SUCCESSFULLY };
+    return { message: USER_MESSAGES.RESEND_VERIFY_EMAIL_SUCCESSFULLY }
   }
 }
-const accessService = new AccessService();
-export default accessService;
+const accessService = new AccessService()
+export default accessService

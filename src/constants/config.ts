@@ -49,6 +49,10 @@ export const envConfig = {
 
   // User Collections
   dbUserCollection: process.env.DB_USER_COLLECTION as string,
-  dbAdminCollection: process.env.DB_ADMIN_COLLECTION as string,
   dbTokenCollection: process.env.DB_TOKEN_COLLECTION as string,
+  dbResumeCollection: process.env.DB_RESUME_COLLECTION as string,
+  dbTemplateCollection: process.env.DB_TEMPLATE_COLLECTION as string,
+  dbResumeVersionCollection: process.env.DB_RESUME_VERSION_COLLECTION as string,
+  dbFeatureConfigCollection: process.env.DB_FEATURE_CONFIG_COLLECTION as string,
+  dbApiKeyCollection: process.env.DB_API_KEY_COLLECTION as string
 } as const

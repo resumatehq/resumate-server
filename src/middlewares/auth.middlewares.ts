@@ -162,8 +162,16 @@ export const accessTokenValidation = validate(
     {
       authorization: {
         custom: {
-          options: async (value: string, { req }) => {
-            const access_token = (value || '').split(' ')[1]
+          options: asyncHandler(async (value: string, { req }) => {
+            let access_token: string | undefined = undefined
+
+            // Check if token exists in Authorization header
+            if (req.headers.authorization && req.headers.authorization.startsWith('Bearer')) {
+              access_token = req.headers.authorization.split(' ')[1]
+            } else if (req.cookies && req.cookies.jwt) {
+              // Or from cookie
+              access_token = req.cookies.jwt
+            }
 
             if (!access_token) {
               throw new ErrorWithStatus({
@@ -186,7 +194,7 @@ export const accessTokenValidation = validate(
               })
             }
             return true
-          }
+          })
         }
       }
     },
@@ -241,3 +249,41 @@ export const refreshTokenValidation = validate(
     ['body']
   )
 )
+
+// validate API key
+export const validateApiKey = validate(
+  checkSchema(
+    {
+      'x-api-key': {
+        trim: true,
+        notEmpty: {
+          errorMessage: USER_MESSAGES.API_KEY_REQUIRED
+        },
+        custom: {
+          options: async (value: string, { req }) => {
+            try {
+              const apiKeyExist = await databaseServices.tokens.findOne({
+                token: value,
+                type: tokenType.ApiKey
+              })
+
+              if (!apiKeyExist) {
+                throw new Error(USER_MESSAGES.API_KEY_IS_INVALID)
+              }
+
+              const decoded_api_key = await verifyToken({
+                token: value,
+                secretOrPublickey: envConfig.jwtSecretApiKey
+              })
+
+              req.decoded_api_key = decoded_api_key
+            } catch (error) {
+              throw new Error((error as JsonWebTokenError).message)
+            }
+            return true
+          }
+        }
+      }
+    },
+    ['headers']
+  )
