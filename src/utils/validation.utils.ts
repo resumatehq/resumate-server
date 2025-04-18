@@ -1,7 +1,7 @@
 import { Request, Response, NextFunction } from 'express'
 import { validationResult, ValidationChain } from 'express-validator'
 import { EntityError, ErrorWithStatus } from './error.utils';
-import HTTP_STATUS_CODES from '../core/statusCodes';
+import HTTP_STATUS_CODES from '~/core/statusCodes';
 // import { RunnableValidationChains } from 'express-validator/lib/middlewares/schema'
 
 // sequential processing, stops running validations chain if the previous one fails.

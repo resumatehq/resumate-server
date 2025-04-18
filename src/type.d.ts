@@ -1,4 +1,4 @@
-import { TokenPayload } from '~/models/requests/user.requests'
+import { TokenPayload } from "./models/requests/user.request";
 declare global {
   namespace Express {
     interface Request {
