@@ -2,28 +2,28 @@ import nodemailer from 'nodemailer';
 import { envConfig } from '~/constants/config';
 
 class EmailService {
-    private transporter: nodemailer.Transporter;
+  private transporter: nodemailer.Transporter;
 
-    constructor() {
-        this.transporter = nodemailer.createTransport({
-            host: envConfig.smtpHost,
-            port: envConfig.smtpPort,
-            secure: envConfig.smtpSecure,
-            auth: {
-                user: envConfig.smtpUser,
-                pass: envConfig.smtpPassword
-            }
-        });
-    }
+  constructor() {
+    this.transporter = nodemailer.createTransport({
+      host: envConfig.smtpHost,
+      port: envConfig.smtpPort,
+      secure: envConfig.smtpSecure,
+      auth: {
+        user: envConfig.smtpUser,
+        pass: envConfig.smtpPassword
+      }
+    });
+  }
 
-    async sendVerificationEmail(to: string, username: string, verificationToken: string) {
-        const verificationLink = `${envConfig.clientUrl}/verify-email?token=${verificationToken}`;
+  async sendVerificationEmail(to: string, username: string, verificationToken: string) {
+    const verificationLink = `${envConfig.clientUrl}/verify-email?token=${verificationToken}`;
 
-        const mailOptions = {
-            from: `"${envConfig.appName}" <${envConfig.smtpUser}>`,
-            to,
-            subject: 'Verify your email address',
-            html: `
+    const mailOptions = {
+      from: `"${envConfig.appName}" <${envConfig.smtpUser}>`,
+      to,
+      subject: 'Verify your email address',
+      html: `
         <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
           <h2>Email Verification</h2>
           <p>Hello ${username},</p>
@@ -38,10 +38,10 @@ class EmailService {
           <p>Best regards,<br>${envConfig.appName} Team</p>
         </div>
       `
-        };
+    };
 
-        return this.transporter.sendMail(mailOptions);
-    }
+    return this.transporter.sendMail(mailOptions);
+  }
 }
 
 const emailService = new EmailService();
