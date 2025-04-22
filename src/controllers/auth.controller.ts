@@ -6,7 +6,7 @@ import { USER_MESSAGES } from "~/constants/messages";
 import HTTP_STATUS_CODES from "~/core/statusCodes";
 import { CREATED, OK } from "~/core/succes.response";
 import { TokenPayload } from "~/models/requests/user.request";
-import accessService from "~/services/auth.service";
+import authService from "~/services/auth.service";
 import { ErrorWithStatus } from "~/utils/error.utils";
 
 interface CustomRequest extends Request {
@@ -15,7 +15,7 @@ interface CustomRequest extends Request {
 
 class AuthController {
     register = async (req: Request, res: Response) => {
-        const result = await accessService.register(req.body)
+        const result = await authService.register(req.body)
         new CREATED({
             message: USER_MESSAGES.REGISTER_SUCCESSFULLY,
             data: result
@@ -23,7 +23,7 @@ class AuthController {
     }
 
     login = async (req: Request, res: Response) => {
-        const result = await accessService.login(req.body)
+        const result = await authService.login(req.body)
         new OK({
             message: USER_MESSAGES.LOGIN_SUCCESSFULLY,
             data: result
@@ -41,7 +41,7 @@ class AuthController {
             })
         }
 
-        const { access_token, refresh_token } = await accessService.googleLogin(req.user);
+        const { access_token, refresh_token } = await authService.googleLogin(req.user);
 
         const redirectUrl = envConfig.googleRedirectClientUrl;
         if (!redirectUrl) {
@@ -64,7 +64,7 @@ class AuthController {
         const { refresh_token } = req.body;
         const { user_id } = req.decoded_authorization as TokenPayload;
 
-        await accessService.logout({
+        await authService.logout({
             user_id,
             refresh_token,
             // req_data: {
@@ -87,9 +87,9 @@ class AuthController {
 
     refreshToken = async (req: CustomRequest, res: Response) => {
         const { refresh_token } = req.body;
-        const { user_id, role, verify } = req.decoded_refresh_token as TokenPayload
+        const { user_id, role, verify, tier } = req.decoded_refresh_token as TokenPayload
 
-        const result = await accessService.refreshToken({ user_id, role, verify, refresh_token });
+        const result = await authService.refreshToken({ user_id, role, verify, tier, refresh_token });
 
         new OK({
             message: USER_MESSAGES.REFRESH_TOKEN_SUCCESSFULLY,
@@ -107,7 +107,7 @@ class AuthController {
             });
         }
 
-        const result = await accessService.verifyEmail(token);
+        const result = await authService.verifyEmail(token);
 
         new OK({
             message: USER_MESSAGES.EMAIL_VERIFIED_SUCCESSFULLY,
@@ -125,7 +125,7 @@ class AuthController {
             });
         }
 
-        const result = await accessService.resendVerificationEmail(email);
+        const result = await authService.resendVerificationEmail(email);
 
         new OK({
             message: USER_MESSAGES.RESEND_VERIFY_EMAIL_SUCCESSFULLY

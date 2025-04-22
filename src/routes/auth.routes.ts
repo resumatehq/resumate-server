@@ -3,30 +3,25 @@ import passport from 'passport'
 import authController from '~/controllers/auth.controller';
 import { accessTokenValidation, loginValidation, refreshTokenValidation, registerValidation } from '~/middlewares/auth.middlewares'
 import { wrapRequestHandler } from '~/utils/wrapHandler'
-
+import { generalRateLimiter, loginRateLimiter, registerRateLimiter, resendEmailRateLimiter } from '~/middlewares/rate-limiter.middleware'
 
 const authRoutes = Router();
 
-authRoutes.post('/register', registerValidation, wrapRequestHandler(authController.register))
+authRoutes.post('/register', registerRateLimiter, registerValidation, wrapRequestHandler(authController.register))
 
+authRoutes.post('/login', loginRateLimiter, loginValidation, wrapRequestHandler(authController.login))
 
-authRoutes.post('/login', loginValidation, wrapRequestHandler(authController.login))
+authRoutes.delete('/logout', accessTokenValidation, refreshTokenValidation, generalRateLimiter(10, 60 * 1000), wrapRequestHandler(authController.logout))
 
+authRoutes.post('/refresh-token', refreshTokenValidation, generalRateLimiter(5, 60 * 1000), wrapRequestHandler(authController.refreshToken))
 
-authRoutes.delete('/logout', accessTokenValidation, refreshTokenValidation, wrapRequestHandler(authController.logout))
+authRoutes.post('/verify-email', generalRateLimiter(5, 60 * 1000), wrapRequestHandler(authController.verifyEmail))
 
-
-authRoutes.post('/refresh-token', refreshTokenValidation, wrapRequestHandler(authController.refreshToken))
-
-
-authRoutes.post('/verify-email', wrapRequestHandler(authController.verifyEmail))
-
-
-authRoutes.post('/resend-verification-email', wrapRequestHandler(authController.resendVerificationEmail))
-
+authRoutes.post('/resend-verification-email', resendEmailRateLimiter, wrapRequestHandler(authController.resendVerificationEmail))
 
 authRoutes.get(
   '/login/google',
+  generalRateLimiter(5, 60 * 1000),
   passport.authenticate('google', { scope: ['profile', 'email'], session: false })
 );
 

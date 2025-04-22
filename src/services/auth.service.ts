@@ -13,23 +13,27 @@ import HTTP_STATUS_CODES from '~/core/statusCodes'
 import databaseServices from './database.service'
 import { tokenType, userVerificationStatus } from '~/constants/enums'
 import emailService from './email.service'
-
-class AccessService {
+import redisClient from '~/config/redis';
+import cacheService from './cache.service'
+class AuthService {
   private signAccessToken({
     user_id,
     verify,
-    role
+    role,
+    tier
   }: {
     user_id: string
     verify: userVerificationStatus
     role: string
+    tier: string
   }) {
     return signToken({
       payload: {
         user_id,
         token_type: tokenType.AccessToken,
         verify,
-        role
+        role,
+        tier
       },
       privateKey: envConfig.jwtSecretAccessToken,
       options: {
@@ -42,12 +46,14 @@ class AccessService {
     user_id,
     verify,
     exp,
-    role
+    role,
+    tier
   }: {
     user_id: string
     verify: userVerificationStatus
     exp?: number
     role: string
+    tier: string
   }) {
     if (exp) {
       return signToken({
@@ -56,7 +62,8 @@ class AccessService {
           token_type: tokenType.RefreshToken,
           verify,
           exp,
-          role
+          role,
+          tier
         },
         privateKey: envConfig.jwtSecretRefreshToken,
         options: {
@@ -69,7 +76,8 @@ class AccessService {
         user_id,
         token_type: tokenType.RefreshToken,
         verify,
-        role
+        role,
+        tier
       },
       privateKey: envConfig.jwtSecretRefreshToken,
       options: {
@@ -81,18 +89,21 @@ class AccessService {
   private signEmailVerifyToken({
     user_id,
     verify,
-    role
+    role,
+    tier
   }: {
     user_id: string
     verify: userVerificationStatus
     role: string
+    tier: string
   }) {
     return signToken({
       payload: {
         user_id,
         token_type: tokenType.EmailVerificationToken,
         verify,
-        role
+        role,
+        tier
       },
       privateKey: envConfig.jwtSecretEmailVerifyToken,
       options: {
@@ -118,26 +129,31 @@ class AccessService {
   async signAccessAndRefreshToken({
     user_id,
     verify,
-    role
+    role,
+    tier
   }: {
     user_id: string
     verify: userVerificationStatus
     role: string
+    tier: string
   }) {
     return Promise.all([
-      this.signAccessToken({ user_id, verify, role }),
-      this.signRefreshToken({ user_id, verify, role })
+      this.signAccessToken({ user_id, verify, role, tier }),
+      this.signRefreshToken({ user_id, verify, role, tier })
     ])
   }
 
   async register(payload: RegisterReqBody) {
     const user_id = new ObjectId()
     const salt = 10
+    const tier = 'free'
+
     // Tạo mã token xác minh email
     const email_verify_token = await this.signEmailVerifyToken({
       user_id: user_id.toString(),
       verify: userVerificationStatus.Unverified,
-      role: 'user'
+      role: 'user',
+      tier
     })
     // Mã hóa mật khẩu
     const hashedPassword = await bcrypt.hash(payload.password, salt)
@@ -146,7 +162,8 @@ class AccessService {
     const newUser = new User({
       _id: user_id,
       ...payload,
-      password: hashedPassword
+      password: hashedPassword,
+      tier
     })
 
     // Lưu người dùng mới vào cơ sở dữ liệu
@@ -159,7 +176,8 @@ class AccessService {
     const [access_token, refresh_token] = await this.signAccessAndRefreshToken({
       user_id: user_id.toString(),
       verify: userVerificationStatus.Unverified,
-      role: newUser.role
+      role: newUser.role,
+      tier: newUser.tier
     })
     const { iat: iat_refresh_token, exp: exp_refresh_token } = await this.decodeRefreshToken(refresh_token)
 
@@ -185,11 +203,9 @@ class AccessService {
     // Send verification email
     await emailService.sendVerificationEmail(payload.email, payload.username, email_verify_token)
 
-    console.info('Email Verify Token:', email_verify_token)
-
     return {
       access_token,
-      refresh_token
+      refresh_token,
     }
   }
 
@@ -201,6 +217,7 @@ class AccessService {
       password: string
       verify: userVerificationStatus
       role: string
+      tier: string
     }
 
     if (!user) {
@@ -222,7 +239,8 @@ class AccessService {
     const [access_token, refresh_token] = await this.signAccessAndRefreshToken({
       user_id: user._id.toString(),
       verify: user.verify,
-      role: user.role || 'user'
+      role: user.role || 'user',
+      tier: user.tier || 'free'
     })
 
     // câp nhật trạng thái và thời gian đăng nhập cuối cùng
@@ -254,7 +272,7 @@ class AccessService {
 
     return {
       access_token,
-      refresh_token
+      refresh_token,
     }
   }
 
@@ -281,7 +299,8 @@ class AccessService {
     const [access_token, refresh_token] = await this.signAccessAndRefreshToken({
       user_id: user._id.toString(),
       verify: userVerificationStatus.Verified,
-      role: user.role || 'user'
+      role: user.role || 'user',
+      tier: user.tier || 'free'
     })
 
     await databaseServices.tokens.deleteMany({ user_id: user._id, type: tokenType.RefreshToken })
@@ -304,6 +323,13 @@ class AccessService {
   }
 
   async logout({ user_id, refresh_token }: { user_id: string; refresh_token: string }) {
+    const redis = await redisClient;
+    // Store refresh token in blacklist with proper expiry time
+    const expiryTime = typeof envConfig.refreshTokenExpiresIn === 'string'
+      ? parseInt(envConfig.refreshTokenExpiresIn)
+      : envConfig.refreshTokenExpiresIn;
+    await redis.setObject(`bl_${refresh_token}`, { token: refresh_token }, expiryTime);
+
     databaseServices.tokens.deleteOne({
       user_id: new ObjectId(user_id) as any,
       token: refresh_token,
@@ -325,11 +351,13 @@ class AccessService {
     user_id,
     role,
     verify,
+    tier,
     refresh_token
   }: {
     user_id: string
     role: string
     verify: userVerificationStatus
+    tier: string
     refresh_token: string
   }) {
     const user = (await databaseServices.users.findOne({ _id: new ObjectId(user_id) })) as IUser
@@ -340,6 +368,9 @@ class AccessService {
         message: USER_MESSAGES.USER_NOT_FOUND
       })
     }
+
+    // Update tier from database in case it has changed
+    tier = user.tier || 'free'
 
     const token = await databaseServices.tokens.findOne({ user_id: new ObjectId(user_id), token: refresh_token })
 
@@ -359,16 +390,26 @@ class AccessService {
       })
     }
 
+    // Blacklist old refresh token
+    const redis = await redisClient;
+    const expiryTime = typeof envConfig.refreshTokenExpiresIn === 'string'
+      ? parseInt(envConfig.refreshTokenExpiresIn)
+      : envConfig.refreshTokenExpiresIn;
+    await redis.setObject(`bl_${refresh_token}`, { token: refresh_token }, expiryTime);
+
     const [access_token, new_refresh_token] = await this.signAccessAndRefreshToken({
       user_id: user_id,
       verify,
-      role
+      role,
+      tier
     })
 
     const { exp: new_exp_refresh_token } = await this.decodeRefreshToken(new_refresh_token)
 
+    // Delete old refresh token from database
     await databaseServices.tokens.deleteOne({ _id: token._id })
 
+    // Store new refresh token in database
     await databaseServices.tokens.insertOne(
       new Token({
         user_id: new ObjectId(user_id),
@@ -439,14 +480,18 @@ class AccessService {
       }
     )
 
-    // Remove the verification token
     await databaseServices.tokens.deleteOne({ _id: tokenInDB._id })
+    await databaseServices.tokens.deleteOne({
+      user_id: new ObjectId(user_id),
+      type: tokenType.RefreshToken
+    })
 
     // Generate new access and refresh tokens
     const [access_token, refresh_token] = await this.signAccessAndRefreshToken({
       user_id,
       verify: userVerificationStatus.Verified,
-      role: user.role
+      role: user.role,
+      tier: user.tier || 'free'
     })
 
     const { exp } = await this.decodeRefreshToken(refresh_token)
@@ -496,7 +541,8 @@ class AccessService {
     const email_verify_token = await this.signEmailVerifyToken({
       user_id: user._id.toString(),
       verify: userVerificationStatus.Unverified,
-      role: user.role
+      role: user.role,
+      tier: user.tier || 'free'
     })
 
     // Decode the token to get expiration time
@@ -519,5 +565,5 @@ class AccessService {
     return { message: USER_MESSAGES.RESEND_VERIFY_EMAIL_SUCCESSFULLY }
   }
 }
-const accessService = new AccessService()
-export default accessService
+const authService = new AuthService()
+export default authService
