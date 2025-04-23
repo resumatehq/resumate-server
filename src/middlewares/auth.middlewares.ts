@@ -102,7 +102,7 @@ const confirmPasswordSchema: ParamSchema = {
   custom: {
     options: (value, { req }) => {
       if (value !== req.body.password) {
-        throw new Error(USER_MESSAGES.CONFIRM_PASSWORD_MUST_BE_MATCH)
+        throw new Error(USER_MESSAGES.CONFIRM_PASSWORD_MUST_MATCH)
       }
       return value
     }
@@ -166,7 +166,6 @@ export const accessTokenValidation = validate(
           options: async (value: string, { req }) => {
             let access_token: string | undefined = undefined
 
-            // Check if token exists in Authorization header
             if (value) {
               access_token = (value || '').split(' ')[1]
             } else if (req.cookies && req.cookies.jwt) {
@@ -211,9 +210,8 @@ export const refreshTokenValidation = validate(
           options: async (value: string, { req }) => {
             let refresh_token: string | undefined
 
-            // Check if token exists in Authorization header
             if (value) {
-              refresh_token = (value || '').split(' ')[1]
+              refresh_token = value
             } else if (req.cookies && req.cookies.jwt) {
               refresh_token = req.cookies.jwt
             }
