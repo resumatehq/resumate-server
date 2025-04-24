@@ -15,6 +15,7 @@ import { tokenType, userVerificationStatus } from '~/constants/enums'
 import emailService from './email.service'
 import redisClient from '~/config/redis';
 import cacheService from './cache.service'
+import { update } from 'lodash'
 
 class AuthService {
   private signAccessToken({
@@ -204,9 +205,29 @@ class AuthService {
     // Send verification email
     await emailService.sendVerificationEmail(payload.email, payload.username, email_verify_token)
 
+    // Create user object for response without sensitive data
+    const userResponse = {
+      _id: user_id,
+      username: newUser.username,
+      email: newUser.email,
+      avatar_url: newUser.avatar_url,
+      tier: newUser.tier,
+      verify: newUser.verify,
+      role: newUser.role,
+      permissions: newUser.permissions,
+      subscription: newUser.subscription,
+      created_at: newUser.created_at,
+      update_at: newUser.updated_at
+    }
+
+    // Store user in Redis cache
+    const redis = await redisClient;
+    await redis.setObject(`user:${user_id.toString()}`, userResponse, 1800);
+
     return {
       access_token,
       refresh_token,
+      user: userResponse
     }
   }
 
@@ -271,9 +292,34 @@ class AuthService {
       })
     )
 
+    // Fetch complete user data for response
+    const userResponse = await databaseServices.users.findOne(
+      { _id: new ObjectId(user._id.toString()) },
+      {
+        projection: {
+          password: 0,
+          forgot_password_token: 0,
+          email_verify_token: 0,
+          forgot_password: 0
+        }
+      }
+    )
+
+    if (!userResponse) {
+      throw new ErrorWithStatus({
+        status: HTTP_STATUS_CODES.NOT_FOUND,
+        message: USER_MESSAGES.USER_NOT_FOUND
+      })
+    }
+
+    // Store updated user in Redis cache
+    const redis = await redisClient;
+    await redis.setObject(`user:${user._id.toString()}`, userResponse, 1800);
+
     return {
       access_token,
       refresh_token,
+      user: userResponse
     }
   }
 
@@ -317,9 +363,34 @@ class AuthService {
       })
     )
 
+    // Fetch complete user data for response
+    const userResponse = await databaseServices.users.findOne(
+      { _id: new ObjectId(user._id.toString()) },
+      {
+        projection: {
+          password: 0,
+          forgot_password_token: 0,
+          email_verify_token: 0,
+          forgot_password: 0
+        }
+      }
+    )
+
+    if (!userResponse) {
+      throw new ErrorWithStatus({
+        status: HTTP_STATUS_CODES.NOT_FOUND,
+        message: USER_MESSAGES.USER_NOT_FOUND
+      })
+    }
+
+    // Store updated user in Redis cache
+    const redis = await redisClient;
+    await redis.setObject(`user:${user._id.toString()}`, userResponse, 1800);
+
     return {
       access_token,
-      refresh_token
+      refresh_token,
+      user: userResponse
     }
   }
 
@@ -330,6 +401,9 @@ class AuthService {
       ? parseInt(envConfig.refreshTokenExpiresIn)
       : envConfig.refreshTokenExpiresIn;
     await redis.setObject(`bl_${refresh_token}`, { token: refresh_token }, expiryTime);
+
+    // Remove user from Redis cache
+    await redis.del(`user:${user_id}`);
 
     databaseServices.tokens.deleteOne({
       user_id: new ObjectId(user_id) as any,
@@ -507,9 +581,34 @@ class AuthService {
       })
     )
 
+    // Fetch updated user data for response
+    const userResponse = await databaseServices.users.findOne(
+      { _id: new ObjectId(user_id) },
+      {
+        projection: {
+          password: 0,
+          forgot_password_token: 0,
+          email_verify_token: 0,
+          forgot_password: 0
+        }
+      }
+    )
+
+    if (!userResponse) {
+      throw new ErrorWithStatus({
+        status: HTTP_STATUS_CODES.NOT_FOUND,
+        message: USER_MESSAGES.USER_NOT_FOUND
+      })
+    }
+
+    // Update user in Redis cache
+    const redis = await redisClient;
+    await redis.setObject(`user:${user_id}`, userResponse, 1800);
+
     return {
       access_token,
-      refresh_token
+      refresh_token,
+      user: userResponse
     }
   }
 
