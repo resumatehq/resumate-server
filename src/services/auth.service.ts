@@ -2,7 +2,7 @@
 
 import { ObjectId } from 'mongodb'
 import { LoginReqBody, RegisterReqBody } from '~/models/requests/user.request'
-import User, { IUser } from '~/models/schemas/user.schema'
+import { IUser, defaultUserStructure } from '~/models/schemas/user.schema'
 import { envConfig } from '~/constants/config'
 import bcrypt from 'bcrypt'
 import { signToken, verifyToken } from '~/utils/token.utils'
@@ -15,6 +15,7 @@ import { tokenType, userVerificationStatus } from '~/constants/enums'
 import emailService from './email.service'
 import redisClient from '~/config/redis';
 import cacheService from './cache.service'
+
 class AuthService {
   private signAccessToken({
     user_id,
@@ -158,17 +159,17 @@ class AuthService {
     // Mã hóa mật khẩu
     const hashedPassword = await bcrypt.hash(payload.password, salt)
 
-    // Tạo người dùng mới với mật khẩu đã mã hóa
-    const newUser = new User({
+    const { confirm_password, ...userData } = payload
+
+    const newUser = {
       _id: user_id,
-      ...payload,
+      ...userData,
+      ...defaultUserStructure,
       password: hashedPassword,
       tier
-    })
+    } as IUser
 
-    // Lưu người dùng mới vào cơ sở dữ liệu
     await databaseServices.users.insertOne(newUser)
-    // Lưu verify email token  và refresh token vào cơ sở dữ liệu
     const { iat: iat_email_verify_token, exp: exp_email_verify_token } = await this.decodeEmailVerifyToken(
       email_verify_token
     )
@@ -539,7 +540,7 @@ class AuthService {
 
     // Generate a new verification token
     const email_verify_token = await this.signEmailVerifyToken({
-      user_id: user._id.toString(),
+      user_id: user._id?.toString() || '',
       verify: userVerificationStatus.Unverified,
       role: user.role,
       tier: user.tier || 'free'
