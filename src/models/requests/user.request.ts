@@ -5,6 +5,7 @@ export interface RegisterReqBody {
     username: string
     email: string
     password: string
+    confirm_password: string
     date_of_birth: Date
     status?: string
     created_at?: Date
@@ -20,6 +21,8 @@ export interface TokenPayload extends JwtPayload {
     user_id: string
     token_type: tokenType
     verify: userVerificationStatus
+    role: string
+    tier: string
     exp: number
 }
 
