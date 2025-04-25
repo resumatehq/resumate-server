@@ -1,6 +1,5 @@
 import { ObjectId } from 'mongodb'
 import { envConfig } from '~/constants/config'
-import { EMAIL_REGEXP, NAME_REGEXP } from '~/helpers/regex'
 import { SectionType } from './template.schema'
 
 export type UserTier = 'free' | 'premium' | 'admin';
@@ -46,7 +45,6 @@ export interface IUserUsage {
     docx: number
     png: number
   }
-  lastResumeCreatedAt?: Date
 }
 
 export interface IUser {
@@ -80,12 +78,6 @@ export interface IUser {
   created_at: Date
   updated_at: Date
   last_login_time: Date
-  // premiumAccessLog: Array<{
-  //   feature: string
-  //   timestamp: Date
-  //   ip: string
-  //   userAgent: string
-  // }>
 }
 
 export const defaultUserStructure: Partial<IUser> = {
@@ -95,13 +87,13 @@ export const defaultUserStructure: Partial<IUser> = {
     status: 'active',
     paymentProvider: null,
     autoRenew: true,
-    // startDate: undefined,
-    // endDate: undefined,
-    // expiryDate: undefined,
-    // trialEndsAt: undefined,
-    // cancelledAt: undefined,
-    // paymentMethod: undefined,
-    // paymentId: undefined
+    startDate: undefined,
+    endDate: undefined,
+    expiryDate: undefined,
+    trialEndsAt: undefined,
+    cancelledAt: undefined,
+    paymentMethod: undefined,
+    paymentId: undefined
   },
   permissions: {
     maxResumes: 3,
@@ -125,8 +117,7 @@ export const defaultUserStructure: Partial<IUser> = {
       pdf: 0,
       docx: 0,
       png: 0
-    },
-    lastResumeCreatedAt: undefined
+    }
   },
   analytics: {
     resumesCreated: 0,
