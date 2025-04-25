@@ -58,9 +58,6 @@ export const envConfig = {
     (process.env.REDIS_PASSWORD
       ? `redis://:${process.env.REDIS_PASSWORD}@${process.env.REDIS_HOST}:${process.env.REDIS_PORT}/${process.env.REDIS_DB || 0}`
       : `redis://${process.env.REDIS_HOST}:${process.env.REDIS_PORT}/${process.env.REDIS_DB || 0}`),
-  // redisRateLimitExpireTime: process.env.REDIS_RATE_LIMIT_EXPIRE_TIME as number | StringValue,
-  // redisRateLimitMax: process.env.REDIS_RATE_LIMIT_MAX as number | StringValue,
-
   // User Collections
   dbUserCollection: process.env.DB_USER_COLLECTION as string,
   dbTokenCollection: process.env.DB_TOKEN_COLLECTION as string,
