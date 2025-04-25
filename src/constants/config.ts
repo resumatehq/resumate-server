@@ -47,6 +47,20 @@ export const envConfig = {
   googleCallbackURLProd: process.env.GOOGLE_CALLBACK_URL_PROD as string,
   googleRedirectClientUrl: process.env.GOOGLE_REDIRECT_CLIENT_URL as string,
 
+  // redis
+  redisHost: process.env.REDIS_HOST as string,
+  redisPort: parseInt(process.env.REDIS_PORT as string),
+  redisPassword: process.env.REDIS_PASSWORD as string,
+  redisDb: parseInt(process.env.REDIS_DB as string),
+  redisExpireTime: process.env.REDIS_EXPIRE_TIME as number | StringValue,
+  redisPrefix: process.env.REDIS_PREFIX as string,
+  redisUrl: process.env.REDIS_URL ||
+    (process.env.REDIS_PASSWORD
+      ? `redis://:${process.env.REDIS_PASSWORD}@${process.env.REDIS_HOST}:${process.env.REDIS_PORT}/${process.env.REDIS_DB || 0}`
+      : `redis://${process.env.REDIS_HOST}:${process.env.REDIS_PORT}/${process.env.REDIS_DB || 0}`),
+  // redisRateLimitExpireTime: process.env.REDIS_RATE_LIMIT_EXPIRE_TIME as number | StringValue,
+  // redisRateLimitMax: process.env.REDIS_RATE_LIMIT_MAX as number | StringValue,
+
   // User Collections
   dbUserCollection: process.env.DB_USER_COLLECTION as string,
   dbTokenCollection: process.env.DB_TOKEN_COLLECTION as string,
@@ -54,5 +68,7 @@ export const envConfig = {
   dbTemplateCollection: process.env.DB_TEMPLATE_COLLECTION as string,
   dbResumeVersionCollection: process.env.DB_RESUME_VERSION_COLLECTION as string,
   dbFeatureConfigCollection: process.env.DB_FEATURE_CONFIG_COLLECTION as string,
-  dbApiKeyCollection: process.env.DB_API_KEY_COLLECTION as string
+  dbIndustryCollection: process.env.DB_INDUSTRY_COLLCTION as string,
+  dbAiPromptCollection: process.env.DB_AI_PROMPT as string,
+  dbJobPositionCollection: process.env.DB_JOB_POSITION_COLLECTION as string,
 } as const
