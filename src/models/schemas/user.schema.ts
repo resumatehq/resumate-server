@@ -139,7 +139,6 @@ export const defaultUserStructure: Partial<IUser> = {
   verify: 'unverified',
   created_at: new Date(),
   updated_at: new Date(),
-  last_login_time: new Date()
 }
 
 export const userCollection = envConfig.dbUserCollection
