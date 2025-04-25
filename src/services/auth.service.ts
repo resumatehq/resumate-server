@@ -16,6 +16,7 @@ import emailService from './email.service'
 import redisClient from '~/config/redis';
 import cacheService from './cache.service'
 import { update } from 'lodash'
+import { logger } from '~/loggers/my-logger.log'
 
 class AuthService {
   private signAccessToken({
@@ -150,6 +151,11 @@ class AuthService {
     const salt = 10
     const tier = 'free'
 
+    logger.info('Registering new user', 'AuthService.register', '', {
+      email: payload.email,
+      username: payload.username
+    })
+
     // Tạo mã token xác minh email
     const email_verify_token = await this.signEmailVerifyToken({
       user_id: user_id.toString(),
@@ -188,6 +194,11 @@ class AuthService {
     // Send verification email
     await emailService.sendVerificationEmail(payload.email, payload.username, email_verify_token)
 
+    logger.info('User registered successfully', 'AuthService.register', '', {
+      userId: user_id.toString(),
+      email: payload.email
+    })
+
     return {
       user_id: user_id.toString(),
       email: payload.email,
@@ -221,6 +232,12 @@ class AuthService {
         status: HTTP_STATUS_CODES.UNPROCESSABLE_ENTITY
       })
     }
+
+    logger.info('User successfully logged in', '', '', {
+      email: payload.email,
+      userId: user._id.toString(),
+      timestamp: new Date().toISOString()
+    })
 
     const [access_token, refresh_token] = await this.signAccessAndRefreshToken({
       user_id: user._id.toString(),
@@ -307,6 +324,8 @@ class AuthService {
       }
     )
 
+    logger.info(`Google login attempt for user: ${user.email}`);
+
     const [access_token, refresh_token] = await this.signAccessAndRefreshToken({
       user_id: user._id.toString(),
       verify: userVerificationStatus.Verified,
@@ -359,6 +378,8 @@ class AuthService {
   }
 
   async logout({ user_id, refresh_token }: { user_id: string; refresh_token: string }) {
+    logger.info('User logging out', 'AuthService.logout', '', { userId: user_id })
+
     const redis = await redisClient;
     // Store refresh token in blacklist with proper expiry time
     const expiryTime = typeof envConfig.refreshTokenExpiresIn === 'string'
@@ -384,6 +405,8 @@ class AuthService {
         }
       }
     )
+
+    logger.info('User logged out successfully', 'AuthService.logout', '', { userId: user_id })
   }
 
   async refreshToken({
@@ -399,9 +422,12 @@ class AuthService {
     tier: string
     refresh_token: string
   }) {
+    logger.info('Refreshing token', 'AuthService.refreshToken', '', { userId: user_id })
+
     const user = (await databaseServices.users.findOne({ _id: new ObjectId(user_id) })) as IUser
 
     if (!user) {
+      logger.error('User not found during token refresh', 'AuthService.refreshToken', '', { userId: user_id })
       throw new ErrorWithStatus({
         status: HTTP_STATUS_CODES.NOT_FOUND,
         message: USER_MESSAGES.USER_NOT_FOUND
@@ -414,6 +440,7 @@ class AuthService {
     const token = await databaseServices.tokens.findOne({ user_id: new ObjectId(user_id), token: refresh_token })
 
     if (!token) {
+      logger.error('Token not found during refresh', 'AuthService.refreshToken', '', { userId: user_id })
       throw new ErrorWithStatus({
         status: HTTP_STATUS_CODES.UNAUTHORIZED,
         message: TOKEN_MESSAGES.TOKEN_NOT_FOUND
@@ -423,6 +450,10 @@ class AuthService {
     const { iat: iat_refresh_token, exp: exp_refresh_token } = await this.decodeRefreshToken(refresh_token)
 
     if (exp_refresh_token < new Date().getTime() / 1000) {
+      logger.error('Token expired during refresh', 'AuthService.refreshToken', '', {
+        userId: user_id,
+        expiry: new Date((exp_refresh_token as number) * 1000).toISOString()
+      })
       throw new ErrorWithStatus({
         status: HTTP_STATUS_CODES.UNAUTHORIZED,
         message: TOKEN_MESSAGES.TOKEN_EXPIRED
@@ -459,6 +490,8 @@ class AuthService {
       })
     )
 
+    logger.info('Token refreshed successfully', 'AuthService.refreshToken', '', { userId: user_id })
+
     return {
       access_token,
       refresh_token: new_refresh_token
@@ -470,9 +503,12 @@ class AuthService {
     const decode_email_verify_token = await this.decodeEmailVerifyToken(email_verify_token)
     const { user_id } = decode_email_verify_token
 
+    logger.info('Verifying email', 'AuthService.verifyEmail', '', { userId: user_id })
+
     // Find the user
     const user = (await databaseServices.users.findOne({ _id: new ObjectId(user_id) })) as IUser
     if (!user) {
+      logger.error('User not found during email verification', 'AuthService.verifyEmail', '', { userId: user_id })
       throw new ErrorWithStatus({
         status: HTTP_STATUS_CODES.NOT_FOUND,
         message: USER_MESSAGES.USER_NOT_FOUND
@@ -481,6 +517,10 @@ class AuthService {
 
     // Check if user is already verified
     if (user.verify === userVerificationStatus.Verified) {
+      logger.warn('Email already verified', 'AuthService.verifyEmail', '', {
+        userId: user_id,
+        email: user.email
+      })
       throw new ErrorWithStatus({
         status: HTTP_STATUS_CODES.BAD_REQUEST,
         message: USER_MESSAGES.EMAIL_ALREADY_VERIFIED_BEFORE
@@ -495,6 +535,7 @@ class AuthService {
     })
 
     if (!tokenInDB) {
+      logger.error('Verification token not found', 'AuthService.verifyEmail', '', { userId: user_id })
       throw new ErrorWithStatus({
         status: HTTP_STATUS_CODES.UNAUTHORIZED,
         message: TOKEN_MESSAGES.TOKEN_NOT_FOUND
@@ -503,6 +544,10 @@ class AuthService {
 
     // Check if token is expired
     if (tokenInDB.expires_at.getTime() < new Date().getTime()) {
+      logger.error('Verification token expired', 'AuthService.verifyEmail', '', {
+        userId: user_id,
+        expiry: tokenInDB.expires_at.toISOString()
+      })
       throw new ErrorWithStatus({
         status: HTTP_STATUS_CODES.UNAUTHORIZED,
         message: TOKEN_MESSAGES.TOKEN_EXPIRED
@@ -559,6 +604,7 @@ class AuthService {
     )
 
     if (!userResponse) {
+      logger.error('User not found after email verification', 'AuthService.verifyEmail', '', { userId: user_id })
       throw new ErrorWithStatus({
         status: HTTP_STATUS_CODES.NOT_FOUND,
         message: USER_MESSAGES.USER_NOT_FOUND
@@ -569,6 +615,11 @@ class AuthService {
     const redis = await redisClient;
     await redis.setObject(`user:${user_id}`, userResponse, 1800);
 
+    logger.info('Email verified successfully', 'AuthService.verifyEmail', '', {
+      userId: user_id,
+      email: user.email
+    })
+
     return {
       access_token,
       refresh_token,
@@ -577,10 +628,13 @@ class AuthService {
   }
 
   async resendVerificationEmail(email: string) {
+    logger.info('Resending verification email', 'AuthService.resendVerificationEmail', '', { email })
+
     // Find the user by email
     const user = (await databaseServices.users.findOne({ email })) as IUser
 
     if (!user) {
+      logger.error('User not found during resend verification', 'AuthService.resendVerificationEmail', '', { email })
       throw new ErrorWithStatus({
         status: HTTP_STATUS_CODES.NOT_FOUND,
         message: USER_MESSAGES.EMAIL_NOT_EXIST
@@ -589,6 +643,10 @@ class AuthService {
 
     // Check if user is already verified
     if (user.verify === userVerificationStatus.Verified) {
+      logger.warn('Email already verified', 'AuthService.resendVerificationEmail', '', {
+        email,
+        userId: user._id?.toString() || 'unknown'
+      })
       throw new ErrorWithStatus({
         status: HTTP_STATUS_CODES.BAD_REQUEST,
         message: USER_MESSAGES.EMAIL_ALREADY_VERIFIED_BEFORE
@@ -625,6 +683,11 @@ class AuthService {
 
     // Send the verification email
     await emailService.sendVerificationEmail(user.email, user.username, email_verify_token)
+
+    logger.info('Verification email resent successfully', 'AuthService.resendVerificationEmail', '', {
+      email,
+      userId: user._id?.toString() || 'unknown'
+    })
 
     return { message: USER_MESSAGES.RESEND_VERIFY_EMAIL_SUCCESSFULLY }
   }
