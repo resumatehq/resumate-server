@@ -43,6 +43,27 @@ const dateOfBirthSchema: ParamSchema = {
       strict: true,
       strictSeparator: true
     }
+  },
+  custom: {
+    options: async (value: string) => {  // Change type to string since that's what we'll receive
+      const dateValue = new Date(value);  // Convert string to Date object
+      const today = new Date();
+      let age = today.getFullYear() - dateValue.getFullYear();
+      const monthDiff = today.getMonth() - dateValue.getMonth();
+
+      if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < dateValue.getDate())) {
+        age--;
+      }
+
+      if (age > 120) {
+        throw new ErrorWithStatus({
+          message: 'Invalid date of birth: Age cannot be more than 120 years',
+          status: HTTP_STATUS_CODES.BAD_REQUEST
+        });
+      }
+
+      return true
+    }
   }
 }
 

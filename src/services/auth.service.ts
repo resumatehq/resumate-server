@@ -22,12 +22,10 @@ class AuthService {
   private signAccessToken({
     user_id,
     verify,
-    role,
     tier
   }: {
     user_id: string
     verify: userVerificationStatus
-    role: string
     tier: string
   }) {
     return signToken({
@@ -35,7 +33,6 @@ class AuthService {
         user_id,
         token_type: tokenType.AccessToken,
         verify,
-        role,
         tier
       },
       privateKey: envConfig.jwtSecretAccessToken,
@@ -49,13 +46,11 @@ class AuthService {
     user_id,
     verify,
     exp,
-    role,
     tier
   }: {
     user_id: string
     verify: userVerificationStatus
     exp?: number
-    role: string
     tier: string
   }) {
     if (exp) {
@@ -65,7 +60,6 @@ class AuthService {
           token_type: tokenType.RefreshToken,
           verify,
           exp,
-          role,
           tier
         },
         privateKey: envConfig.jwtSecretRefreshToken,
@@ -79,7 +73,6 @@ class AuthService {
         user_id,
         token_type: tokenType.RefreshToken,
         verify,
-        role,
         tier
       },
       privateKey: envConfig.jwtSecretRefreshToken,
@@ -92,12 +85,10 @@ class AuthService {
   private signEmailVerifyToken({
     user_id,
     verify,
-    role,
     tier
   }: {
     user_id: string
     verify: userVerificationStatus
-    role: string
     tier: string
   }) {
     return signToken({
@@ -105,7 +96,6 @@ class AuthService {
         user_id,
         token_type: tokenType.EmailVerificationToken,
         verify,
-        role,
         tier
       },
       privateKey: envConfig.jwtSecretEmailVerifyToken,
@@ -132,17 +122,15 @@ class AuthService {
   async signAccessAndRefreshToken({
     user_id,
     verify,
-    role,
     tier
   }: {
     user_id: string
     verify: userVerificationStatus
-    role: string
     tier: string
   }) {
     return Promise.all([
-      this.signAccessToken({ user_id, verify, role, tier }),
-      this.signRefreshToken({ user_id, verify, role, tier })
+      this.signAccessToken({ user_id, verify, tier }),
+      this.signRefreshToken({ user_id, verify, tier })
     ])
   }
 
@@ -160,7 +148,6 @@ class AuthService {
     const email_verify_token = await this.signEmailVerifyToken({
       user_id: user_id.toString(),
       verify: userVerificationStatus.Unverified,
-      role: 'user',
       tier
     })
     // Mã hóa mật khẩu
@@ -168,12 +155,11 @@ class AuthService {
 
     const { confirm_password, ...userData } = payload
 
-    const newUser = {
+    const newUser: IUser = {
       _id: user_id,
       ...userData,
       ...defaultUserStructure,
       password: hashedPassword,
-      tier
     } as IUser
 
     await databaseServices.users.insertOne(newUser)
@@ -213,7 +199,6 @@ class AuthService {
       _id: { toString: () => string }
       password: string
       verify: userVerificationStatus
-      role: string
       tier: string
     }
 
@@ -242,7 +227,6 @@ class AuthService {
     const [access_token, refresh_token] = await this.signAccessAndRefreshToken({
       user_id: user._id.toString(),
       verify: user.verify,
-      role: user.role || 'user',
       tier: user.tier || 'free'
     })
 
@@ -329,7 +313,6 @@ class AuthService {
     const [access_token, refresh_token] = await this.signAccessAndRefreshToken({
       user_id: user._id.toString(),
       verify: userVerificationStatus.Verified,
-      role: user.role || 'user',
       tier: user.tier || 'free'
     })
 
@@ -381,7 +364,7 @@ class AuthService {
     logger.info('User logging out', 'AuthService.logout', '', { userId: user_id })
 
     const redis = await redisClient;
-    // Store refresh token in blacklist with proper expiry time
+
     const expiryTime = typeof envConfig.refreshTokenExpiresIn === 'string'
       ? parseInt(envConfig.refreshTokenExpiresIn)
       : envConfig.refreshTokenExpiresIn;
@@ -460,35 +443,80 @@ class AuthService {
       })
     }
 
-    // Blacklist old refresh token
+    // Blacklist old refresh token first
     const redis = await redisClient;
-    const expiryTime = typeof envConfig.refreshTokenExpiresIn === 'string'
-      ? parseInt(envConfig.refreshTokenExpiresIn)
-      : envConfig.refreshTokenExpiresIn;
-    await redis.setObject(`bl_${refresh_token}`, { token: refresh_token }, expiryTime);
+    const THIRTY_DAYS_IN_SECONDS = 30 * 24 * 60 * 60; // 30 days in seconds
 
+    try {
+      const blacklistKey = `blacklist:token:${refresh_token}`;
+      const result = await redis.setObject(blacklistKey, {
+        token: refresh_token,
+        user_id,
+        type: tokenType.RefreshToken,
+        blacklisted_at: new Date().toISOString()
+      }, THIRTY_DAYS_IN_SECONDS);
+
+      if (!result) {
+        throw new Error('Failed to set blacklist in Redis');
+      }
+
+      logger.info('Old refresh token blacklisted successfully', 'AuthService.refreshToken', '', {
+        userId: user_id,
+        blacklistKey
+      });
+    } catch (error) {
+      logger.error('Failed to blacklist old refresh token', 'AuthService.refreshToken', '', {
+        userId: user_id,
+        error: error instanceof Error ? error.message : 'Unknown error'
+      });
+      throw new ErrorWithStatus({
+        status: HTTP_STATUS_CODES.INTERNAL_SERVER_ERROR,
+        message: TOKEN_MESSAGES.TOKEN_BLACKLIST_FAILED
+      });
+    }
+
+    // Delete old refresh token from database
+    try {
+      await databaseServices.tokens.deleteOne({ _id: token._id })
+      logger.info('Old refresh token deleted from database', 'AuthService.refreshToken', '', { userId: user_id })
+    } catch (error) {
+      logger.error('Failed to delete old refresh token from database', 'AuthService.refreshToken', '', {
+        userId: user_id,
+        error: error instanceof Error ? error.message : 'Unknown error'
+      })
+      // Even if database deletion fails, continue since token is blacklisted
+    }
+
+    // Generate new tokens only after successful blacklisting
     const [access_token, new_refresh_token] = await this.signAccessAndRefreshToken({
       user_id: user_id,
       verify,
-      role,
       tier
     })
 
     const { exp: new_exp_refresh_token } = await this.decodeRefreshToken(new_refresh_token)
 
-    // Delete old refresh token from database
-    await databaseServices.tokens.deleteOne({ _id: token._id })
-
-    // Store new refresh token in database
-    await databaseServices.tokens.insertOne(
-      new Token({
-        user_id: new ObjectId(user_id),
-        token: new_refresh_token,
-        type: tokenType.RefreshToken,
-        expires_at: new Date((new_exp_refresh_token as number) * 1000),
-        created_at: new Date((iat_refresh_token as number) * 1000)
+    try {
+      await databaseServices.tokens.insertOne(
+        new Token({
+          user_id: new ObjectId(user_id),
+          token: new_refresh_token,
+          type: tokenType.RefreshToken,
+          expires_at: new Date((new_exp_refresh_token as number) * 1000),
+          created_at: new Date((iat_refresh_token as number) * 1000)
+        })
+      )
+      logger.info('New refresh token stored in database', 'AuthService.refreshToken', '', { userId: user_id })
+    } catch (error) {
+      logger.error('Failed to store new refresh token in database', 'AuthService.refreshToken', '', {
+        userId: user_id,
+        error: error instanceof Error ? error.message : 'Unknown error'
       })
-    )
+      throw new ErrorWithStatus({
+        status: HTTP_STATUS_CODES.INTERNAL_SERVER_ERROR,
+        message: TOKEN_MESSAGES.TOKEN_CREATION_FAILED
+      })
+    }
 
     logger.info('Token refreshed successfully', 'AuthService.refreshToken', '', { userId: user_id })
 
@@ -505,7 +533,6 @@ class AuthService {
 
     logger.info('Verifying email', 'AuthService.verifyEmail', '', { userId: user_id })
 
-    // Find the user
     const user = (await databaseServices.users.findOne({ _id: new ObjectId(user_id) })) as IUser
     if (!user) {
       logger.error('User not found during email verification', 'AuthService.verifyEmail', '', { userId: user_id })
@@ -574,7 +601,6 @@ class AuthService {
     const [access_token, refresh_token] = await this.signAccessAndRefreshToken({
       user_id,
       verify: userVerificationStatus.Verified,
-      role: user.role,
       tier: user.tier || 'free'
     })
 
@@ -653,17 +679,75 @@ class AuthService {
       })
     }
 
-    // Delete any existing verification tokens
-    await databaseServices.tokens.deleteMany({
+    // Find any existing verification tokens
+    const existingTokens = await databaseServices.tokens.find({
       user_id: user._id,
       type: tokenType.EmailVerificationToken
-    })
+    }).toArray()
+
+    // Blacklist existing tokens
+    if (existingTokens.length > 0) {
+      const redis = await redisClient;
+      const THIRTY_DAYS_IN_SECONDS = 30 * 24 * 60 * 60; // 30 days in seconds
+
+      try {
+        // Blacklist all existing tokens
+        await Promise.all(existingTokens.map(async (token) => {
+          const blacklistKey = `blacklist:token:${token.token}`;
+          const result = await redis.setObject(blacklistKey, {
+            token: token.token,
+            user_id: user._id?.toString(),
+            type: tokenType.EmailVerificationToken,
+            blacklisted_at: new Date().toISOString()
+          }, THIRTY_DAYS_IN_SECONDS);
+
+          if (!result) {
+            throw new Error('Failed to set blacklist in Redis');
+          }
+
+          logger.info('Old verification token blacklisted', 'AuthService.resendVerificationEmail', '', {
+            email,
+            userId: user._id?.toString() || 'unknown',
+            tokenId: (token._id as ObjectId).toString(),
+            blacklistKey
+          });
+        }));
+      } catch (error) {
+        logger.error('Failed to blacklist old verification tokens', 'AuthService.resendVerificationEmail', '', {
+          email,
+          userId: user._id?.toString() || 'unknown',
+          error: error instanceof Error ? error.message : 'Unknown error'
+        });
+        throw new ErrorWithStatus({
+          status: HTTP_STATUS_CODES.INTERNAL_SERVER_ERROR,
+          message: TOKEN_MESSAGES.TOKEN_BLACKLIST_FAILED
+        });
+      }
+    }
+
+    // Delete existing verification tokens from database
+    try {
+      await databaseServices.tokens.deleteMany({
+        user_id: user._id,
+        type: tokenType.EmailVerificationToken
+      });
+      logger.info('Old verification tokens deleted from database', 'AuthService.resendVerificationEmail', '', {
+        email,
+        userId: user._id?.toString() || 'unknown'
+      });
+    } catch (error) {
+      logger.error('Failed to delete old verification tokens from database', 'AuthService.resendVerificationEmail', '', {
+        email,
+        userId: user._id?.toString() || 'unknown',
+        error: error instanceof Error ? error.message : 'Unknown error'
+      });
+      // Continue since tokens are blacklisted
+    }
 
     // Generate a new verification token
     const email_verify_token = await this.signEmailVerifyToken({
       user_id: user._id?.toString() || '',
       verify: userVerificationStatus.Unverified,
-      role: user.role,
       tier: user.tier || 'free'
     })
 
@@ -671,15 +755,31 @@ class AuthService {
     const { iat, exp } = await this.decodeEmailVerifyToken(email_verify_token)
 
     // Save the new token
-    await databaseServices.tokens.insertOne(
-      new Token({
-        user_id: user._id,
-        token: email_verify_token,
-        type: tokenType.EmailVerificationToken,
-        expires_at: new Date((exp as number) * 1000),
-        created_at: new Date((iat as number) * 1000)
-      })
-    )
+    try {
+      await databaseServices.tokens.insertOne(
+        new Token({
+          user_id: user._id,
+          token: email_verify_token,
+          type: tokenType.EmailVerificationToken,
+          expires_at: new Date((exp as number) * 1000),
+          created_at: new Date((iat as number) * 1000)
+        })
+      );
+      logger.info('New verification token stored in database', 'AuthService.resendVerificationEmail', '', {
+        email,
+        userId: user._id?.toString() || 'unknown'
+      });
+    } catch (error) {
+      logger.error('Failed to store new verification token', 'AuthService.resendVerificationEmail', '', {
+        email,
+        userId: user._id?.toString() || 'unknown',
+        error: error instanceof Error ? error.message : 'Unknown error'
+      });
+      throw new ErrorWithStatus({
+        status: HTTP_STATUS_CODES.INTERNAL_SERVER_ERROR,
+        message: TOKEN_MESSAGES.TOKEN_CREATION_FAILED
+      });
+    }
 
     // Send the verification email
     await emailService.sendVerificationEmail(user.email, user.username, email_verify_token)
@@ -689,7 +789,7 @@ class AuthService {
       userId: user._id?.toString() || 'unknown'
     })
 
-    return { message: USER_MESSAGES.RESEND_VERIFY_EMAIL_SUCCESSFULLY }
+    return true
   }
 }
 const authService = new AuthService()

@@ -7,7 +7,7 @@ import { generalRateLimiter, loginRateLimiter, registerRateLimiter, resendEmailR
 
 const authRoutes = Router();
 
-authRoutes.post('/register', registerRateLimiter, registerValidation, wrapRequestHandler(authController.register))
+authRoutes.post('/register', registerValidation, wrapRequestHandler(authController.register))
 
 authRoutes.post('/login', loginRateLimiter, loginValidation, wrapRequestHandler(authController.login))
 
