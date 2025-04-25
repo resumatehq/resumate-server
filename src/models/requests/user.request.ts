@@ -7,10 +7,6 @@ export interface RegisterReqBody {
     password: string
     confirm_password: string
     date_of_birth: Date
-    status?: string
-    created_at?: Date
-    updated_at?: Date
-    last_login_time?: Date
 }
 export interface LoginReqBody {
     email: string
