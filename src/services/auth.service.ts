@@ -175,14 +175,6 @@ class AuthService {
       email_verify_token
     )
 
-    const [access_token, refresh_token] = await this.signAccessAndRefreshToken({
-      user_id: user_id.toString(),
-      verify: userVerificationStatus.Unverified,
-      role: newUser.role,
-      tier: newUser.tier
-    })
-    const { iat: iat_refresh_token, exp: exp_refresh_token } = await this.decodeRefreshToken(refresh_token)
-
     await databaseServices.tokens.insertOne(
       new Token({
         user_id,
@@ -192,42 +184,14 @@ class AuthService {
         created_at: new Date((iat_email_verify_token as number) * 1000)
       })
     )
-    await databaseServices.tokens.insertOne(
-      new Token({
-        user_id,
-        token: refresh_token,
-        type: tokenType.RefreshToken,
-        expires_at: new Date((exp_refresh_token as number) * 1000),
-        created_at: new Date((iat_refresh_token as number) * 1000)
-      })
-    )
 
     // Send verification email
     await emailService.sendVerificationEmail(payload.email, payload.username, email_verify_token)
 
-    // Create user object for response without sensitive data
-    const userResponse = {
-      _id: user_id,
-      username: newUser.username,
-      email: newUser.email,
-      avatar_url: newUser.avatar_url,
-      tier: newUser.tier,
-      verify: newUser.verify,
-      role: newUser.role,
-      permissions: newUser.permissions,
-      subscription: newUser.subscription,
-      created_at: newUser.created_at,
-      update_at: newUser.updated_at
-    }
-
-    // Store user in Redis cache
-    const redis = await redisClient;
-    await redis.setObject(`user:${user_id.toString()}`, userResponse, 1800);
-
     return {
-      access_token,
-      refresh_token,
-      user: userResponse
+      user_id: user_id.toString(),
+      email: payload.email,
+      username: payload.username
     }
   }
 

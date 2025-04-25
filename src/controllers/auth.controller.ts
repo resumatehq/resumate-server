@@ -18,7 +18,18 @@ class AuthController {
         const result = await authService.register(req.body)
         new CREATED({
             message: USER_MESSAGES.REGISTER_SUCCESSFULLY,
-            data: result
+            data: {
+                user: {
+                    id: result.user_id,
+                    email: result.email,
+                    username: result.username,
+                    verification_status: 'pending'
+                },
+                next_steps: {
+                    action: 'verify_email',
+                    message: 'Please check your email to verify your account'
+                }
+            }
         }).send(res);
     }
 
