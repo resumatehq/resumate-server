@@ -4,7 +4,7 @@ import { ObjectId } from "mongodb";
 import { USER_MESSAGES } from "~/constants/messages";
 import HTTP_STATUS_CODES from "~/core/statusCodes";
 import redisClient from "~/config/redis";
-import { IUser } from "~/models/schemas/user.schema";
+import { IUser, IUserPermissions, UserTier } from "~/models/schemas/user.schema";
 
 class UsersService {
   async findById(id: string) {
@@ -125,7 +125,6 @@ class UsersService {
             status: 1,
             verify: 1,
             created_at: 1,
-            tier: 1
           }
         }
       ])
@@ -138,7 +137,6 @@ class UsersService {
       avatar_url: user.avatar_url,
       status: user.status,
       verify: user.verify,
-      tier: user.tier,
       created_at: user.created_at,
       accountType: user.accountType
     }));
@@ -153,6 +151,17 @@ class UsersService {
     username?: string,
     avatar_url?: string,
     date_of_birth?: Date,
+    bio?: string,
+    industry?: string,
+    experience?: string,
+    location?: string,
+    phone?: string,
+    social_links?: {
+      linkedin?: string;
+      github?: string;
+      twitter?: string;
+      website?: string;
+    }
   }) {
     // Remove any undefined fields
     const filteredUpdates = Object.fromEntries(
@@ -165,6 +174,24 @@ class UsersService {
         message: 'No valid fields provided for update',
         status: HTTP_STATUS_CODES.BAD_REQUEST
       });
+    }
+
+    // Handle social_links update properly
+    if (filteredUpdates.social_links) {
+      // If user wants to update social links, we need to do a partial update
+      // to avoid overwriting existing links that are not being updated
+      const user = await databaseServices.users.findOne(
+        { _id: new ObjectId(userId) },
+        { projection: { social_links: 1 } }
+      );
+
+      if (user && user.social_links) {
+        // Merge existing social links with updated ones
+        const existingSocialLinks = user.social_links || {};
+        const updatedSocialLinks = filteredUpdates.social_links || {};
+
+        filteredUpdates.social_links = Object.assign({}, existingSocialLinks, updatedSocialLinks);
+      }
     }
 
     // Add updated_at timestamp
@@ -198,7 +225,7 @@ class UsersService {
     return result;
   }
 
-  updatePermissions(user: IUser): { tier: 'free' | 'premium', permissions: IUser['permissions'] } {
+  updatePermissions(user: IUser): { tier: UserTier, permissions: IUserPermissions } {
     const status = user.subscription.status;
     const plan = user.subscription.plan;
     let permissions = user.permissions;
@@ -208,26 +235,40 @@ class UsersService {
       permissions = {
         maxResumes: 3,
         maxCustomSections: 0,
-        allowedTemplates: [], // Will be populated with free templates IDs
-        allowedSections: ['education', 'experience', 'skills', 'summary'],
+        allowedSections: ['personal', 'education', 'experience', 'skills', 'summary'],
         allowedFeatures: ['basic_editor', 'basic_ai'],
         allowedExportFormats: ['pdf'],
         aiRequests: {
           maxPerDay: 10,
-          maxPerMonth: 100
+          maxPerMonth: 100,
+          usedToday: permissions?.aiRequests?.usedToday || 0,
+          usedThisMonth: permissions?.aiRequests?.usedThisMonth || 0,
+          lastResetDay: permissions?.aiRequests?.lastResetDay,
+          lastResetMonth: permissions?.aiRequests?.lastResetMonth
         }
       };
     } else if (plan === 'premium_monthly' || plan === 'premium_yearly') {
       permissions = {
         maxResumes: plan === 'premium_yearly' ? 20 : 10,
         maxCustomSections: 5,
-        allowedTemplates: user.permissions?.allowedTemplates || [], // Preserve existing template IDs
-        allowedSections: ['education', 'experience', 'skills', 'summary', 'projects', 'certifications', 'languages', 'interests', 'custom'],
-        allowedFeatures: ['basic_editor', 'advanced_editor', 'basic_ai', 'advanced_ai', 'analytics', 'priority_support'],
+        allowedSections: [
+          'personal', 'education', 'experience', 'skills', 'summary',
+          'projects', 'certifications', 'languages', 'interests',
+          'awards', 'publications', 'references', 'custom'
+        ],
+        allowedFeatures: [
+          'basic_editor', 'advanced_editor',
+          'basic_ai', 'advanced_ai',
+          'analytics', 'priority_support'
+        ],
         allowedExportFormats: ['pdf', 'docx', 'png', 'json'],
         aiRequests: {
           maxPerDay: plan === 'premium_yearly' ? 100 : 50,
-          maxPerMonth: plan === 'premium_yearly' ? 1000 : 500
+          maxPerMonth: plan === 'premium_yearly' ? 1000 : 500,
+          usedToday: permissions?.aiRequests?.usedToday || 0,
+          usedThisMonth: permissions?.aiRequests?.usedThisMonth || 0,
+          lastResetDay: permissions?.aiRequests?.lastResetDay,
+          lastResetMonth: permissions?.aiRequests?.lastResetMonth
         }
       };
     }

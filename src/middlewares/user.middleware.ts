@@ -3,145 +3,6 @@ import { ErrorWithStatus } from '~/utils/error.utils';
 import HTTP_STATUS_CODES from '~/core/statusCodes';
 import { wrapRequestHandler } from '~/utils/wrapHandler';
 
-// export const validateSubscriptionUpdate = wrapRequestHandler((req: Request, res: Response, next: NextFunction) => {
-//     const { plan, status, paymentId, paymentProvider, autoRenew } = req.body;
-
-//     // Validate required fields
-//     if (!status) {
-//         throw new ErrorWithStatus({
-//             message: 'Status is required',
-//             status: HTTP_STATUS_CODES.BAD_REQUEST
-//         });
-//     }
-
-//     // Validate status
-//     const validStatuses = ['active', 'expired', 'canceled'];
-//     if (!validStatuses.includes(status)) {
-//         throw new ErrorWithStatus({
-//             message: `Status must be one of: ${validStatuses.join(', ')}`,
-//             status: HTTP_STATUS_CODES.BAD_REQUEST
-//         });
-//     }
-
-//     // If status is 'canceled', force plan to 'free'
-//     if (status === 'canceled') {
-//         req.body.plan = 'free';
-//         req.body.autoRenew = false;
-//     } else {
-//         // Validate plan for non-canceled status
-//         if (!plan) {
-//             throw new ErrorWithStatus({
-//                 message: 'Plan is required for active or expired status',
-//                 status: HTTP_STATUS_CODES.BAD_REQUEST
-//             });
-//         }
-
-//         const validPlans = ['free', 'premium_monthly', 'premium_yearly'];
-//         if (!validPlans.includes(plan)) {
-//             throw new ErrorWithStatus({
-//                 message: `Plan must be one of: ${validPlans.join(', ')}`,
-//                 status: HTTP_STATUS_CODES.BAD_REQUEST
-//             });
-//         }
-//     }
-
-//     // Validate autoRenew if provided
-//     if (autoRenew !== undefined && typeof autoRenew !== 'boolean') {
-//         throw new ErrorWithStatus({
-//             message: 'autoRenew must be a boolean value',
-//             status: HTTP_STATUS_CODES.BAD_REQUEST
-//         });
-//     }
-
-//     // Validate dates if provided
-//     // if (startDate) {
-//     //     const startDateObj = new Date(startDate);
-//     //     if (isNaN(startDateObj.getTime())) {
-//     //         throw new ErrorWithStatus({
-//     //             message: 'Invalid startDate format',
-//     //             status: HTTP_STATUS_CODES.BAD_REQUEST
-//     //         });
-//     //     }
-//     // }
-
-//     // if (expiryDate) {
-//     //     const expiryDateObj = new Date(expiryDate);
-//     //     if (isNaN(expiryDateObj.getTime())) {
-//     //         throw new ErrorWithStatus({
-//     //             message: 'Invalid expiryDate format',
-//     //             status: HTTP_STATUS_CODES.BAD_REQUEST
-//     //         });
-//     //     }
-
-//     //     // If both dates are provided, validate that expiryDate is after startDate
-//     //     if (startDate) {
-//     //         const startDateObj = new Date(startDate);
-//     //         if (expiryDateObj <= startDateObj) {
-//     //             throw new ErrorWithStatus({
-//     //                 message: 'expiryDate must be after startDate',
-//     //                 status: HTTP_STATUS_CODES.BAD_REQUEST
-//     //             });
-//     //         }
-//     //     }
-//     // }
-
-//     // Validate payment related fields
-//     if (paymentProvider) {
-//         const validProviders = ['stripe', 'paypal'];
-//         if (!validProviders.includes(paymentProvider)) {
-//             throw new ErrorWithStatus({
-//                 message: 'Payment provider must be either stripe or paypal',
-//                 status: HTTP_STATUS_CODES.BAD_REQUEST
-//             });
-//         }
-
-//         // Require paymentId when paymentProvider is specified
-//         if (!paymentId) {
-//             throw new ErrorWithStatus({
-//                 message: 'paymentId is required when paymentProvider is specified',
-//                 status: HTTP_STATUS_CODES.BAD_REQUEST
-//             });
-//         }
-
-//         // Validate paymentId format based on provider
-//         if (paymentProvider === 'stripe' && !paymentId.startsWith('pi_')) {
-//             throw new ErrorWithStatus({
-//                 message: 'Invalid Stripe payment ID format',
-//                 status: HTTP_STATUS_CODES.BAD_REQUEST
-//             });
-//         }
-//     } else {
-//         // If no payment provider, there should be no paymentId
-//         if (paymentId) {
-//             throw new ErrorWithStatus({
-//                 message: 'paymentId cannot be set without a paymentProvider',
-//                 status: HTTP_STATUS_CODES.BAD_REQUEST
-//             });
-//         }
-//     }
-
-//     // Additional business logic validations
-//     if (plan === 'free') {
-//         // Free plan shouldn't have payment information
-//         if (paymentProvider || paymentId) {
-//             throw new ErrorWithStatus({
-//                 message: 'Free plan cannot have payment information',
-//                 status: HTTP_STATUS_CODES.BAD_REQUEST
-//             });
-//         }
-//     } else {
-//         // Premium plans should have payment information if status is active
-//         if (status === 'active' && (!paymentProvider || !paymentId)) {
-//             throw new ErrorWithStatus({
-//                 message: 'Premium plans require payment information',
-//                 status: HTTP_STATUS_CODES.BAD_REQUEST
-//             });
-//         }
-//     }
-
-//     next();
-// })
-
 export const validateSubscriptionUpgrade = wrapRequestHandler((req: Request, res: Response, next: NextFunction) => {
     const { plan, paymentId, paymentProvider, autoRenew } = req.body;
 
@@ -212,7 +73,11 @@ export const validateSubscriptionUpgrade = wrapRequestHandler((req: Request, res
 })
 
 export const validateProfileUpdate = wrapRequestHandler((req: Request, res: Response, next: NextFunction) => {
-    const allowedFields = ['username', 'avatar_url', 'date_of_birth'];
+    const allowedFields = [
+        'username', 'avatar_url', 'date_of_birth',
+        'bio', 'industry', 'experience', 'location', 'phone',
+        'social_links'
+    ];
     const updates = req.body;
 
     // Check if there are any fields to update
@@ -277,6 +142,104 @@ export const validateProfileUpdate = wrapRequestHandler((req: Request, res: Resp
                 message: 'Invalid date of birth: Age cannot be more than 120 years',
                 status: HTTP_STATUS_CODES.BAD_REQUEST
             });
+        }
+    }
+
+    // Validate bio if provided
+    if (updates.bio !== undefined && updates.bio !== null) {
+        if (typeof updates.bio !== 'string') {
+            throw new ErrorWithStatus({
+                message: 'Bio must be a string',
+                status: HTTP_STATUS_CODES.BAD_REQUEST
+            });
+        }
+        if (updates.bio.length > 500) {
+            throw new ErrorWithStatus({
+                message: 'Bio cannot exceed 500 characters',
+                status: HTTP_STATUS_CODES.BAD_REQUEST
+            });
+        }
+    }
+
+    // Validate industry if provided
+    if (updates.industry !== undefined && updates.industry !== null) {
+        if (typeof updates.industry !== 'string') {
+            throw new ErrorWithStatus({
+                message: 'Industry must be a string',
+                status: HTTP_STATUS_CODES.BAD_REQUEST
+            });
+        }
+    }
+
+    // Validate experience if provided
+    if (updates.experience !== undefined && updates.experience !== null) {
+        if (typeof updates.experience !== 'string') {
+            throw new ErrorWithStatus({
+                message: 'Experience must be a string',
+                status: HTTP_STATUS_CODES.BAD_REQUEST
+            });
+        }
+    }
+
+    // Validate location if provided
+    if (updates.location !== undefined && updates.location !== null) {
+        if (typeof updates.location !== 'string') {
+            throw new ErrorWithStatus({
+                message: 'Location must be a string',
+                status: HTTP_STATUS_CODES.BAD_REQUEST
+            });
+        }
+    }
+
+    // Validate phone if provided
+    if (updates.phone !== undefined && updates.phone !== null) {
+        if (typeof updates.phone !== 'string') {
+            throw new ErrorWithStatus({
+                message: 'Phone must be a string',
+                status: HTTP_STATUS_CODES.BAD_REQUEST
+            });
+        }
+        // Basic phone number validation (optional)
+        const phoneRegex = /^[+]?[(]?[0-9]{1,4}[)]?[-\s./0-9]*$/;
+        if (!phoneRegex.test(updates.phone)) {
+            throw new ErrorWithStatus({
+                message: 'Invalid phone number format',
+                status: HTTP_STATUS_CODES.BAD_REQUEST
+            });
+        }
+    }
+
+    // Validate social_links if provided
+    if (updates.social_links !== undefined && updates.social_links !== null) {
+        if (typeof updates.social_links !== 'object' || updates.social_links === null) {
+            throw new ErrorWithStatus({
+                message: 'Social links must be an object',
+                status: HTTP_STATUS_CODES.BAD_REQUEST
+            });
+        }
+
+        const allowedSocialLinks = ['linkedin', 'github', 'twitter', 'website'];
+        const providedSocialLinks = Object.keys(updates.social_links);
+
+        // Check for invalid social link types
+        const invalidSocialLinks = providedSocialLinks.filter(link => !allowedSocialLinks.includes(link));
+        if (invalidSocialLinks.length > 0) {
+            throw new ErrorWithStatus({
+                message: `Invalid social links provided: ${invalidSocialLinks.join(', ')}. Only ${allowedSocialLinks.join(', ')} are allowed.`,
+                status: HTTP_STATUS_CODES.BAD_REQUEST
+            });
+        }
+
+        // Validate each provided social link URL
+        for (const [platform, url] of Object.entries(updates.social_links)) {
+            if (url !== undefined && url !== null && typeof url === 'string' && url.trim() !== '') {
+                if (!isValidUrl(url)) {
+                    throw new ErrorWithStatus({
+                        message: `Invalid URL format for ${platform}`,
+                        status: HTTP_STATUS_CODES.BAD_REQUEST
+                    });
+                }
+            }
         }
     }
 
