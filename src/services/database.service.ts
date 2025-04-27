@@ -4,6 +4,8 @@ import { Collection, Db, MongoClient } from "mongodb";
 import { envConfig } from "~/constants/config";
 import { IToken } from "~/models/schemas/token.schema";
 import { IUser } from "~/models/schemas/user.schema";
+import { IResume } from "~/models/schemas/resume.schema";
+import { ITemplate } from "~/models/schemas/template.schema";
 
 const uri = `mongodb+srv://${envConfig.dbUsername}:${envConfig.dbPassword}@resumate.zodlwdf.mongodb.net/${envConfig.dbName}?retryWrites=true&w=majority&appName=${envConfig.appName}`;
 
@@ -40,6 +42,15 @@ class DatabaseServices {
   get tokens(): Collection<IToken> {
     return this.db.collection(envConfig.dbTokenCollection);
   }
+
+  get resumes(): Collection<IResume> {
+    return this.db.collection(envConfig.dbResumeCollection);
+  }
+
+  get templates(): Collection<ITemplate> {
+    return this.db.collection(envConfig.dbTemplateCollection);
+  }
 }
+
 const databaseServices = new DatabaseServices();
 export default databaseServices;
