@@ -70,10 +70,6 @@ export interface IUser {
     twitter?: string;
     website?: string;
   };
-  analytics: {
-    resumesCreated: number;
-    lastActive: Date;
-  };
   usage: IUserUsage,
   verify: userVerificationStatus
   created_at: Date
@@ -120,10 +116,6 @@ export const defaultUserStructure: Partial<IUser> = {
       docx: 0,
       png: 0
     }
-  },
-  analytics: {
-    resumesCreated: 0,
-    lastActive: new Date()
   },
   bio: undefined,
   industry: undefined,
