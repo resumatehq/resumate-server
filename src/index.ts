@@ -8,6 +8,8 @@ import { defaultErrorHandler } from '~/middlewares/error.middlewares'
 import { NOT_FOUND } from '~/core/error.response'
 import rootRouterV1 from './routes'
 import { envConfig } from './constants/config'
+import cronService from './services/cron.service'
+import { logger } from './loggers/my-logger.log'
 
 // Khởi tạo socket service
 const app: Application = express()
@@ -53,3 +55,19 @@ app.listen(envConfig.port, () => {
   console.log('Welcome to Express & TypeScript Server')
   console.log(`Server is Fire at http://localhost:${envConfig.port}`)
 })
+
+// Graceful shutdown
+process.on('SIGTERM', () => {
+  logger.info('SIGTERM signal received: closing HTTP server')
+  cronService.stopAll()
+  process.exit(0)
+})
+
+process.on('SIGINT', () => {
+  logger.info('SIGINT signal received: closing HTTP server')
+  cronService.stopAll()
+  process.exit(0)
+})
+
+// const metrics = cronService.getJobMetrics();
+// console.log(metrics);
