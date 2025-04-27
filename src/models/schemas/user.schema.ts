@@ -1,6 +1,6 @@
 import { ObjectId } from 'mongodb'
 import { envConfig } from '~/constants/config'
-import { SectionType } from './template.schema'
+import { SectionType } from './resume.schema';
 
 export type UserTier = 'free' | 'premium' | 'admin';
 export type UserPlan = 'free' | 'premium_monthly' | 'premium_yearly';
