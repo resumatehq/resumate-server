@@ -26,6 +26,7 @@ export interface IUserPermissions {
 export interface IUserSubscription {
   plan: UserPlan;
   status: SubscriptionStatus;
+  hasTrial: boolean;
   startDate?: Date;
   endDate?: Date;
   expiryDate?: Date;
@@ -85,6 +86,7 @@ export const defaultUserStructure: Partial<IUser> = {
   subscription: {
     plan: 'free',
     status: 'active',
+    hasTrial: false,
     paymentProvider: null,
     autoRenew: true,
     startDate: undefined,

@@ -48,4 +48,19 @@ usersRouters.get('/subscription/status',
     wrapRequestHandler(userController.getSubscriptionStatus)
 )
 
+usersRouters.post('/subscription/start-trial',
+    generalRateLimiter(3, 60 * 1000),
+    wrapRequestHandler(userController.startFreeTrial)
+)
+
+usersRouters.post('/subscription/downgrade',
+    generalRateLimiter(5, 60 * 1000),
+    wrapRequestHandler(userController.downgradeToFree)
+)
+
+usersRouters.post('/subscription/initialize-permissions',
+    generalRateLimiter(5, 60 * 1000),
+    wrapRequestHandler(userController.initializePermissions)
+)
+
 export default usersRouters

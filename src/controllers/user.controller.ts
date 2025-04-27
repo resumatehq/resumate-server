@@ -73,10 +73,21 @@ class UserController {
 
     updateProfile = async (req: Request, res: Response) => {
         const { user_id } = req.decoded_authorization as TokenPayload;
-        const { username, avatar_url, date_of_birth } = req.body;
+        const {
+            username,
+            avatar_url,
+            date_of_birth,
+            bio,
+            industry,
+            experience,
+            location,
+            phone,
+            social_links
+        } = req.body;
 
         // Validate that at least one field is provided
-        if (!username && !avatar_url && !date_of_birth) {
+        if (!username && !avatar_url && !date_of_birth && !bio && !industry &&
+            !experience && !location && !phone && !social_links) {
             throw new ErrorWithStatus({
                 message: 'At least one profile field is required for update',
                 status: HTTP_STATUS_CODES.BAD_REQUEST
@@ -86,7 +97,13 @@ class UserController {
         const result = await usersService.updateProfile(user_id, {
             username,
             avatar_url,
-            date_of_birth: date_of_birth ? new Date(date_of_birth) : undefined
+            date_of_birth: date_of_birth ? new Date(date_of_birth) : undefined,
+            bio,
+            industry,
+            experience,
+            location,
+            phone,
+            social_links
         });
 
         new OK({
@@ -105,13 +122,9 @@ class UserController {
         // Determine the appropriate role for AccessControl based on user's tier and subscription
         let accessControlRole = 'free';
 
-        if (user.tier === 'premium' && user.subscription.status === 'active') {
+        if (user.tier !== 'free' && user.subscription.status === 'active') {
             accessControlRole = 'premium';
-        } else if (user.role === 'admin') {
-            accessControlRole = 'admin';
         }
-
-        console.log(accessControlRole)
 
         // Generate permissions map for all features
         const featurePermissions: Record<string, boolean> = {};
@@ -210,14 +223,104 @@ class UserController {
         new OK({
             message: 'Subscription status retrieved successfully',
             data: {
-                isActive,
-                subscription: user.subscription,
+                isPrenium: isActive,
                 tier: user.tier,
+                subscription: user.subscription,
                 permissions: user.permissions
             }
         }).send(res);
     }
 
+    // Start free trial for a user
+    startFreeTrial = async (req: Request, res: Response) => {
+        const { user_id } = req.decoded_authorization as TokenPayload;
+
+        // Validate if the user is eligible for a trial
+        const user = await usersService.getUserById(user_id) as IUser;
+        if (!user) {
+            throw new ErrorWithStatus({
+                message: USER_MESSAGES.USER_NOT_FOUND,
+                status: HTTP_STATUS_CODES.NOT_FOUND
+            });
+        }
+
+        // // Check if user already has an active subscription
+        // if (user.subscription &&
+        //     (user.subscription.hasTrial)) {
+        //     throw new ErrorWithStatus({
+        //         message: 'User already has an active subscription or trial',
+        //         status: HTTP_STATUS_CODES.BAD_REQUEST
+        //     });
+        // }
+        console.log(user.subscription.hasTrial)
+        console.log(user.subscription.trialEndsAt)
+        console.log(user.subscription.hasTrial && user.subscription.trialEndsAt)
+
+        // Check if user already used a trial
+        if (user.subscription.hasTrial && user.subscription.trialEndsAt) {
+            throw new ErrorWithStatus({
+                message: 'User has already used their free trial',
+                status: HTTP_STATUS_CODES.BAD_REQUEST
+            });
+        }
+
+        const result = await subscriptionService.startFreeTrial(
+            user_id
+        );
+
+        new OK({
+            message: 'Free trial started successfully',
+            data: result
+        }).send(res);
+    }
+
+    // Downgrade to free plan
+    downgradeToFree = async (req: Request, res: Response) => {
+        const { user_id } = req.decoded_authorization as TokenPayload;
+
+        const user = await usersService.getUserById(user_id) as IUser;
+        if (!user) {
+            throw new ErrorWithStatus({
+                message: USER_MESSAGES.USER_NOT_FOUND,
+                status: HTTP_STATUS_CODES.NOT_FOUND
+            });
+        }
+
+        // Check if user is already on free plan
+        if (user.tier === 'free') {
+            throw new ErrorWithStatus({
+                message: 'User is already on the free plan',
+                status: HTTP_STATUS_CODES.BAD_REQUEST
+            });
+        }
+
+        const result = await subscriptionService.downgradeToFree(user_id);
+
+        new OK({
+            message: 'Successfully downgraded to free plan',
+            data: result
+        }).send(res);
+    }
+
+    // Initialize permissions
+    initializePermissions = async (req: Request, res: Response) => {
+        const { user_id } = req.decoded_authorization as TokenPayload;
+
+        const user = await usersService.getUserById(user_id) as IUser;
+        if (!user) {
+            throw new ErrorWithStatus({
+                message: USER_MESSAGES.USER_NOT_FOUND,
+                status: HTTP_STATUS_CODES.NOT_FOUND
+            });
+        }
+
+        const result = await subscriptionService.initializePermissions(user_id);
+
+        new OK({
+            message: 'User permissions initialized successfully',
+            data: result
+        }).send(res);
+    }
 }
 
 export default new UserController();
