@@ -16,21 +16,6 @@ class UsersService {
     return !!user;
   }
 
-  async checkUserExistById(id: string) {
-    // Initialize Redis client
-    const redis = await redisClient;
-
-    // Try from Redis cache first
-    const cachedUser = await redis.getObject(`user:${id}`);
-    if (cachedUser) return true;
-
-    // Fallback to database
-    const user = await databaseServices.users.findOne({
-      _id: new ObjectId(id),
-    });
-    return !!user;
-  }
-
   async getUserById(id: string) {
     const redis = await redisClient;
 
