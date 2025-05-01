@@ -394,13 +394,11 @@ class AuthService {
 
   async refreshToken({
     user_id,
-    role,
     verify,
     tier,
     refresh_token
   }: {
     user_id: string
-    role: string
     verify: userVerificationStatus
     tier: string
     refresh_token: string
