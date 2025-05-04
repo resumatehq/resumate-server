@@ -1,76 +1,54 @@
-import mongoose from 'mongoose'
+import { ObjectId } from 'mongodb'
 import { envConfig } from '~/constants/config'
+import { FEATURES } from '~/config/roles'
 
-const featureConfigSchema = new mongoose.Schema(
-  {
-    planType: {
-      type: String,
-      enum: ['free', 'premium_monthly', 'premium_yearly'],
-      required: true,
-      unique: true
-    },
-    features: {
-      resumes: {
-        limit: { type: Number, required: true }
-      },
-      templates: {
-        access: {
-          type: String,
-          enum: ['limited', 'all'],
-          default: 'limited'
-        }
-      },
-      sections: {
-        standard: {
-          type: [String],
-          default: ['personal', 'summary', 'experience', 'education', 'skills']
-        },
-        premium: {
-          type: [String],
-          default: []
-        },
-        custom: {
-          allowed: { type: Boolean, default: false },
-          limit: { type: Number, default: 0 }
-        }
-      },
-      ai: {
-        allowed: { type: Boolean, default: false },
-        dailyLimit: { type: Number, default: 0 },
-        features: { type: [String], default: [] }
-      },
-      export: {
-        formats: { type: [String], default: ['pdf'] },
-        watermark: { type: Boolean, default: true },
-        highQuality: { type: Boolean, default: false },
-        dailyLimit: { type: Number, default: 5 }
-      },
-      sharing: {
-        allowed: { type: Boolean, default: true },
-        customDomain: { type: Boolean, default: false },
-        password: { type: Boolean, default: false },
-        analytics: { type: Boolean, default: false }
-      },
-      version: {
-        history: { type: Boolean, default: false },
-        limit: { type: Number, default: 0 }
-      },
-      api: {
-        access: { type: Boolean, default: false },
-        rateLimit: { type: Number, default: 0 }
-      }
-    },
-    createdAt: {
-      type: Date,
-      default: Date.now
-    },
-    updatedAt: {
-      type: Date,
-      default: Date.now
-    }
-  },
-  { timestamps: true }
-)
+export interface IFeatureConfig {
+  _id: ObjectId;
+  planType: 'free' | 'premium_monthly' | 'premium_yearly';
+  features: {
+    resumes: {
+      limit: number;
+    };
+    templates: {
+      access: 'limited' | 'all';
+      allowedCategories: string[];
+    };
+    sections: {
+      standard: string[];
+      premium: string[];
+      custom?: {
+        allowed: boolean;
+        limit: number;
+      };
+    };
+    ai: {
+      allowed: boolean;
+      dailyLimit: number;
+      monthlyLimit: number;
+      features: string[]; // Từ FEATURES.BASIC_AI hoặc FEATURES.ADVANCED_AI
+    };
+    export: {
+      formats: ('pdf' | 'docx' | 'png' | 'json')[];
+      watermark: boolean;
+      highQuality: boolean;
+    };
+    sharing: {
+      allowed: boolean;
+      customDomain: boolean;
+      password: boolean;
+      analytics: boolean;
+    };
+    support: {
+      type: 'basic' | 'priority';
+      responseTime: number; // Giờ
+    };
+    accessLog: {
+      enabled: boolean;
+      retentionDays: number;
+    };
+  };
+  createdAt: Date;
+  updatedAt: Date;
+}
 
-const FeatureConfig = mongoose.model(envConfig.dbFeatureConfigCollection, featureConfigSchema)
-export default FeatureConfig
+export const featureConfigCollection = envConfig.dbFeatureConfigCollection
