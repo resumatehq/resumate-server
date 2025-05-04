@@ -1,180 +1,166 @@
-import mongoose from 'mongoose'
-import crypto from 'crypto'
+import { ObjectId } from 'mongodb'
 import { envConfig } from '~/constants/config'
 
-const sectionSchema = new mongoose.Schema(
-  {
-    type: {
-      type: String,
-      enum: [
-        'personal',
-        'summary',
-        'experience',
-        'education',
-        'skills',
-        'projects',
-        'certifications',
-        'awards',
-        'publications',
-        'languages',
-        'interests',
-        'references',
-        'custom'
-      ],
-      required: true
-    },
-    title: {
-      type: String,
-      default: function () {
-        const titles = {
-          personal: 'Personal Information',
-          summary: 'Professional Summary',
-          experience: 'Work Experience',
-          education: 'Education',
-          skills: 'Skills',
-          projects: 'Projects',
-          certifications: 'Certifications',
-          awards: 'Awards & Honors',
-          publications: 'Publications',
-          languages: 'Languages',
-          interests: 'Interests',
-          references: 'References'
-        }
-        return titles[this.type] || 'Custom Section'
-      }
-    },
-    enabled: { type: Boolean, default: true },
-    order: { type: Number, required: true },
-    content: { type: mongoose.Schema.Types.Mixed, default: {} },
-    settings: {
-      visibility: { type: String, enum: ['public', 'private'], default: 'public' },
-      layout: { type: String, enum: ['standard', 'compact', 'detailed', 'custom'], default: 'standard' },
-      styling: { type: mongoose.Schema.Types.Mixed, default: {} }
-    }
-  },
-  { _id: true }
-)
+// Defines all possible section types in a resume
+export type SectionType = 'personal' | 'summary' | 'education' | 'experience' | 'skills' | 'projects' |
+  'references' | 'certifications' | 'awards' | 'publications' | 'languages' | 'interests' | 'custom';
 
-const resumeSchema = new mongoose.Schema(
-  {
-    userId: {
-      type: mongoose.Schema.Types.ObjectId,
-      ref: envConfig.dbUserCollection,
-      required: true
-    },
-    title: {
-      type: String,
-      required: true,
-      default: 'Untitled Resume'
-    },
-    targetPosition: String,
-    industry: String,
-    templateId: {
-      type: mongoose.Schema.Types.ObjectId,
-      ref: 'Template',
-      required: true
-    },
-    language: {
-      type: String,
-      default: 'en'
-    },
-    sections: [sectionSchema],
-    metadata: {
-      createdAt: { type: Date, default: Date.now },
-      updatedAt: { type: Date, default: Date.now },
-      lastPublishedAt: Date,
-      currentVersion: { type: Number, default: 1 },
-      isPublished: { type: Boolean, default: false },
-      shareableLink: String,
-      sharingOptions: {
-        password: String,
-        expiresAt: Date,
-        allowDownload: { type: Boolean, default: false },
-        allowFeedback: { type: Boolean, default: false }
-      },
-      viewCount: { type: Number, default: 0 },
-      downloadCount: { type: Number, default: 0 }
-    },
-    atsScore: { type: Number, min: 0, max: 100 },
-    keywords: [String],
-    aiSuggestions: [
-      {
-        sectionId: mongoose.Schema.Types.ObjectId,
-        suggestions: [String],
-        accepted: Boolean,
-        createdAt: { type: Date, default: Date.now }
-      }
-    ],
-    analytics: {
-      lastModified: Date,
-      modificationCount: { type: Number, default: 0 },
-      exportHistory: [
-        {
-          format: String,
-          timestamp: Date
-        }
-      ],
-      shareViews: [
-        {
-          timestamp: Date,
-          ipHash: String
-        }
-      ]
-    }
-  },
-  { timestamps: true }
-)
-
-resumeSchema.methods.generateShareableLink = function () {
-  const uniqueString = crypto.randomBytes(16).toString('hex')
-  this.metadata.shareableLink = uniqueString
-  return uniqueString
+// Base interface for section content - each section type will extend this
+export interface ISectionContent {
+  [key: string]: any;
 }
 
-resumeSchema.methods.setPassword = function (password) {
-  if (!password) {
-    this.metadata.sharingOptions.password = null
-    return
-  }
-
-  const salt = crypto.randomBytes(16).toString('hex')
-  const hash = crypto.pbkdf2Sync(password, salt, 1000, 64, 'sha512').toString('hex')
-  this.metadata.sharingOptions.password = `${salt}:${hash}`
+// Personal info section content structure (mandatory for all resumes)
+export interface IPersonalInfoContent extends ISectionContent {
+  fullName: string;
+  jobTilte: string;
+  email: string;
+  phone: string;
+  location: string;
+  website?: string;
+  profilePicture?: string;
+  socialLinks?: {
+    linkedin?: string;
+    github?: string;
+    twitter?: string;
+    [key: string]: string | undefined;
+  };
+  professionalSummary?: string;
 }
 
-resumeSchema.methods.verifyPassword = function (password) {
-  if (!this.metadata.sharingOptions.password) return true
-
-  const [salt, storedHash] = this.metadata.sharingOptions.password.split(':')
-  const hash = crypto.pbkdf2Sync(password, salt, 1000, 64, 'sha512').toString('hex')
-
-  return storedHash === hash
+// Education section content structure
+export interface IEducationContent extends ISectionContent {
+  institution: string;
+  degree?: string;
+  fieldOfStudy?: string;
+  startDate?: Date;
+  endDate?: Date | null; // null means "present"
+  location?: string;
+  description?: string;
+  achievements?: string[];
+  gpa?: string;
 }
 
-resumeSchema.methods.incrementVersion = function () {
-  this.metadata.currentVersion += 1
-  this.metadata.updatedAt = new Date()
-  return this.metadata.currentVersion
+// Work experience section content structure
+export interface IWorkExperienceContent extends ISectionContent {
+  company: string;
+  position: string;
+  startDate?: Date;
+  endDate?: Date | null; // null means "present" 
+  location?: string;
+  description?: string;
+  achievements?: string[];
+  technologies?: string[];
 }
 
-resumeSchema.methods.publish = function () {
-  this.metadata.isPublished = true
-  this.metadata.lastPublishedAt = new Date()
+// Skills section content structure
+export interface ISkillContent extends ISectionContent {
+  technical: string[];
+  soft: string[];
+  languages: string[];
 }
 
-resumeSchema.statics.findByShareableLink = function (link) {
-  return this.findOne({ 'metadata.shareableLink': link })
+// Project section content structure
+export interface IProjectContent extends ISectionContent {
+  title: string;
+  description?: string;
+  role?: string;
+  startDate?: Date;
+  endDate?: Date | null;
+  technologies?: string[];
+  url?: string;
+  achievements?: string[];
 }
 
-resumeSchema.statics.getRecentlyModified = function (userId, limit = 5) {
-  return this.find({ userId }).sort({ 'metadata.updatedAt': -1 }).limit(limit)
+// Certification section content structure
+export interface ICertificationContent extends ISectionContent {
+  name: string;
+  issuingOrganization: string;
+  issueDate: Date;
+  credentialUrl?: string;
+  description?: string;
 }
 
-// resumeSchema.index({ userId: 1 })
-// resumeSchema.index({ 'metadata.shareableLink': 1 })
-// resumeSchema.index({ 'metadata.updatedAt': -1 })
-// resumeSchema.index({ templateId: 1 })
-// resumeSchema.index({ keywords: 1 })
+// Award section content structure
+export interface IAwardContent extends ISectionContent {
+  title: string;
+  issuingOrganization: string;
+  dateReceived: Date;
+  description?: string;
+}
 
-const Resume = mongoose.model(envConfig.dbResumeCollection, resumeSchema)
-export default Resume
+// Custom section content structure (for user-defined sections)
+export interface ICustomSectionContent extends ISectionContent {
+  title: string;
+  content: string | Record<string, any>;
+}
+
+export interface IResumeSection {
+  _id?: ObjectId;
+  type: SectionType;
+  title: string;
+  enabled: boolean;
+  order: number;
+  content: ISectionContent[];
+  settings: {
+    visibility: 'public' | 'private';
+    layout: 'standard' | 'compact' | 'detailed' | 'custom';
+    styling: Record<string, any>;
+  };
+}
+
+export interface IResume {
+  _id?: ObjectId;
+  userId: ObjectId;
+  title: string;
+  targetPosition?: string;
+  industry?: string;
+  templateId: ObjectId;
+  language: string;
+  sections: IResumeSection[];
+  metadata: {
+    createdAt: Date;
+    updatedAt: Date;
+    lastPublishedAt?: Date;
+    currentVersion: number;
+    isPublished: boolean;
+    lastAutosaved?: Date;
+    shareableLink?: string;
+    sharingOptions: {
+      password?: string;
+      expiresAt?: Date;
+      allowDownload: boolean;
+      allowFeedback: boolean;
+      allowEmbed?: boolean;
+    };
+    viewCount: number;
+    downloadCount: number;
+  };
+  atsScore?: number;
+  keywords: string[];
+  aiSuggestions: Array<{
+    sectionId: ObjectId;
+    suggestions: string[];
+    accepted?: boolean;
+    createdAt: Date;
+  }>;
+  analytics: {
+    lastModified?: Date;
+    modificationCount: number;
+    exportHistory: Array<{
+      format: string;
+      timestamp: Date;
+    }>;
+    shareViews: Array<{
+      timestamp: Date;
+      ipHash?: string;
+      userAgent?: string;
+      referrer?: string;
+    }>;
+  };
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+export const resumeCollection = envConfig.dbResumeCollection
+
