@@ -1,82 +1,56 @@
-import mongoose from 'mongoose'
+import { ObjectId } from 'mongodb'
 import { envConfig } from '~/constants/config'
+import { SectionType } from './resume.schema';
 
-const templateSchema = new mongoose.Schema(
-  {
-    name: {
-      type: String,
-      required: true,
-      unique: true
-    },
-    category: {
-      type: String,
-      enum: ['professional', 'creative', 'simple', 'modern', 'academic', 'executive'],
-      required: true
-    },
-    previewImage: {
-      type: String,
-      required: true
-    },
-    thumbnailImage: String,
-    description: String,
-    tags: [String],
-    structure: {
-      type: mongoose.Schema.Types.Mixed,
-      required: true
-    },
-    defaultSections: [
-      {
-        type: String,
-        enum: [
-          'personal',
-          'summary',
-          'experience',
-          'education',
-          'skills',
-          'projects',
-          'certifications',
-          'awards',
-          'publications',
-          'languages',
-          'interests',
-          'references'
-        ]
-      }
-    ],
-    styling: {
-      type: mongoose.Schema.Types.Mixed,
-      required: true
-    },
-    accountTier: {
-      type: String,
-      enum: ['free', 'premium', 'all'],
-      required: true,
-      default: 'premium'
-    },
-    popularity: {
-      type: Number,
-      default: 0
-    },
-    active: {
-      type: Boolean,
-      default: true
-    },
-    createdAt: {
-      type: Date,
-      default: Date.now
-    },
-    updatedAt: {
-      type: Date,
-      default: Date.now
-    }
-  },
-  { timestamps: true }
-)
+export type TemplateCategory = 'professional' | 'creative' | 'simple' | 'modern' | 'academic' | 'executive';
+// Section configuration for templates
+export interface ITemplateSection {
+  type: SectionType;
+  title: string;
+  description?: string;
+  required?: boolean;
+  defaultEnabled: boolean;
+  defaultOrder: number;
+  layout: 'standard' | 'compact' | 'detailed' | 'custom';
+  allowedFields: string[];
+  styling?: Record<string, any>;
+}
 
-templateSchema.index({ accountTier: 1 })
-templateSchema.index({ category: 1 })
-templateSchema.index({ popularity: -1 })
-templateSchema.index({ active: 1 })
+export interface ITemplate {
+  _id?: ObjectId;
+  name: string;
+  category: TemplateCategory;
+  previewImage: string;
+  thumbnailImage?: string;
+  description?: string;
+  tags: string[];
 
-const Template = mongoose.model(envConfig.dbTemplateCollection, templateSchema)
-export default Template
+  // Sections configuration
+  sections: ITemplateSection[];
+
+  // General styling for the template
+  styling: {
+    fonts: {
+      primary: string;
+      secondary?: string;
+    };
+    colors: {
+      primary: string;
+      secondary?: string;
+      accent?: string;
+      background?: string;
+      text: string;
+    };
+    spacing: Record<string, any>;
+    layout: Record<string, any>;
+  };
+
+  // Access control
+  tier: 'free' | 'premium';
+  popularity: number;
+  active: boolean;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+export const templateCollection = envConfig.dbTemplateCollection;
