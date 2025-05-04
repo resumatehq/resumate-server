@@ -1,38 +1,49 @@
-import mongoose from 'mongoose'
+import { ObjectId } from 'mongodb'
 import { envConfig } from '~/constants/config'
+import { IResumeSection } from './resume.schema'
 
-const resumeVersionSchema = new mongoose.Schema({
-  resumeId: {
-    type: mongoose.Schema.Types.ObjectId,
-    ref: envConfig.dbResumeCollection,
-    required: true
-  },
-  userId: {
-    type: mongoose.Schema.Types.ObjectId,
-    ref: envConfig.dbUserCollection,
-    required: true
-  },
-  versionNumber: {
-    type: Number,
-    required: true
-  },
+export interface IResumeVersion {
+  _id?: ObjectId;
+  resumeId: ObjectId;
+  userId: ObjectId;
+  versionNumber: number;
+  versionName?: string;
   content: {
-    title: String,
-    targetPosition: String,
-    industry: String,
-    templateId: mongoose.Schema.Types.ObjectId,
-    sections: [],
-    metadata: {}
-  },
-  comment: String,
-  createdAt: {
-    type: Date,
-    default: Date.now
-  }
-})
+    title?: string;
+    targetPosition?: string;
+    industry?: string;
+    templateId?: ObjectId;
+    sections: IResumeSection[];
+    metadata?: Record<string, any>;
+  };
+  changes: {
+    type: 'add' | 'update' | 'delete' | 'reorder';
+    sectionType?: string;
+    sectionId?: string;
+    description: string;
+  }[];
+  comment?: string;
+  autoSaved: boolean;
+  createdAt: Date;
+  metrics?: {
+    wordCount: number;
+    characterCount: number;
+    sectionCount: number;
+    estimatedReadTime: number;
+  };
+  aiGenerated?: boolean;
+  atsScore?: number;
+  status: 'draft' | 'published' | 'archived';
+}
 
-// resumeVersionSchema.index({ resumeId: 1, versionNumber: -1 })
-// resumeVersionSchema.index({ userId: 1 })
+export const VERSION_LIMITS = {
+  FREE: 3,
+  PREMIUM: 20
+};
 
-const ResumeVersion = mongoose.model(envConfig.dbResumeVersionCollection, resumeVersionSchema)
-export default ResumeVersion
+export const resumeVersionCollection = envConfig.dbResumeVersionCollection
+
+export default {
+  collectionName: resumeVersionCollection
+};
+
