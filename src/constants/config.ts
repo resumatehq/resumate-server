@@ -58,14 +58,17 @@ export const envConfig = {
     (process.env.REDIS_PASSWORD
       ? `redis://:${process.env.REDIS_PASSWORD}@${process.env.REDIS_HOST}:${process.env.REDIS_PORT}/${process.env.REDIS_DB || 0}`
       : `redis://${process.env.REDIS_HOST}:${process.env.REDIS_PORT}/${process.env.REDIS_DB || 0}`),
-  // User Collections
+
+  // Collections
   dbUserCollection: process.env.DB_USER_COLLECTION as string,
   dbTokenCollection: process.env.DB_TOKEN_COLLECTION as string,
   dbResumeCollection: process.env.DB_RESUME_COLLECTION as string,
-  dbTemplateCollection: process.env.DB_TEMPLATE_COLLECTION as string,
+  dbResumeDraftCollection: process.env.DB_RESUME_DRAFT_COLLECTION as string,
   dbResumeVersionCollection: process.env.DB_RESUME_VERSION_COLLECTION as string,
+  dbTemplateCollection: process.env.DB_TEMPLATE_COLLECTION as string,
   dbFeatureConfigCollection: process.env.DB_FEATURE_CONFIG_COLLECTION as string,
   dbIndustryCollection: process.env.DB_INDUSTRY_COLLCTION as string,
   dbAiPromptCollection: process.env.DB_AI_PROMPT as string,
   dbJobPositionCollection: process.env.DB_JOB_POSITION_COLLECTION as string,
+  dbAccessLogCollection: process.env.DB_ACCESS_LOG_COLLECTION as string
 } as const
