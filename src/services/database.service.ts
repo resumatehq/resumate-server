@@ -47,6 +47,14 @@ class DatabaseServices {
     return this.db.collection(envConfig.dbResumeCollection);
   }
 
+  get resume_version(): Collection {
+    return this.db.collection(envConfig.dbResumeVersionCollection)
+  }
+
+  get resume_draft(): Collection {
+    return this.db.collection(envConfig.dbResumeDraftCollection)
+  }
+
   get templates(): Collection<ITemplate> {
     return this.db.collection(envConfig.dbTemplateCollection);
   }
