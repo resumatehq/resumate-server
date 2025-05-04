@@ -96,7 +96,7 @@ export const defaultUserStructure: Partial<IUser> = {
   permissions: {
     maxResumes: 3,
     maxCustomSections: 0,
-    allowedSections: ['education', 'experience', 'skills', 'summary'],
+    allowedSections: ['personal', 'education', 'experience', 'skills', 'summary'],
     allowedFeatures: ['basic_editor', 'basic_ai'],
     allowedExportFormats: ['pdf'],
     aiRequests: {
