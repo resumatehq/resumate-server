@@ -142,7 +142,6 @@ export const rateLimiter = (maxRequests: number, windowMs: number, prefix: strin
 export const registerRateLimiter = rateLimiter(5, 60 * 60 * 1000, 'register'); // 5 requests per hour
 export const loginRateLimiter = rateLimiter(5, 15 * 60 * 1000, 'login'); // 5 requests per 15 minutes
 export const resendEmailRateLimiter = rateLimiter(3, 60 * 60 * 1000, 'resend-email'); // 3 requests per hour
-export const apiKeyRateLimiter = rateLimiter(3, 24 * 60 * 60 * 1000, 'api-key-creation'); // 3 keys per 24 hours 
 
 // General rate limiter for API endpoints
 export const generalRateLimiter = (limit: number, windowMs: number) => {
@@ -380,26 +379,22 @@ async function logPremiumAccess(req: Request, user: IUser, feature: string, redi
                 docx: 0,
                 png: 0
             },
-            premiumAccessLog: []
+
         };
     }
 
-    if (!user.usage.premiumAccessLog) {
-        user.usage.premiumAccessLog = [];
-    }
+    // // Add simplified log entry to match schema structure
+    // user.usage.premiumAccessLog.push({
+    //     feature,
+    //     timestamp: new Date(),
+    //     ip: cleanIp,
+    //     userAgent
+    // });
 
-    // Add simplified log entry to match schema structure
-    user.usage.premiumAccessLog.push({
-        feature,
-        timestamp: new Date(),
-        ip: cleanIp,
-        userAgent
-    });
-
-    // If log is getting too big, trim it
-    if (user.usage.premiumAccessLog.length > 100) {
-        user.usage.premiumAccessLog = user.usage.premiumAccessLog.slice(-100);
-    }
+    // // If log is getting too big, trim it
+    // if (user.usage.premiumAccessLog.length > 100) {
+    //     user.usage.premiumAccessLog = user.usage.premiumAccessLog.slice(-100);
+    // }
 
     // Increment AI requests counter if it's an AI-related feature
     if (feature.includes('ai')) {
