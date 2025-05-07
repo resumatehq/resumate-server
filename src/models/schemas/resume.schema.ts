@@ -3,7 +3,7 @@ import { envConfig } from '~/constants/config'
 
 // Defines all possible section types in a resume
 export type SectionType = 'personal' | 'summary' | 'education' | 'experience' | 'skills' | 'projects' |
-  'references' | 'certifications' | 'awards' | 'publications' | 'languages' | 'interests' | 'custom';
+  'references' | 'certifications' | 'awards' | 'publications' | 'languages' | 'interests' | 'volunteer' | 'custom';
 
 // Base interface for section content - each section type will extend this
 export interface ISectionContent {

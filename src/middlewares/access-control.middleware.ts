@@ -265,70 +265,70 @@ export const trackFeatureUsage = (counter: 'createdResumes' | 'aiRequestsCount' 
     });
 };
 
-/**
- * Middleware kiểm tra giới hạn section
- * @param sectionType Loại section cần kiểm tra
- */
-export const checkSectionAccess = (sectionType: SectionType) => {
-    return asyncHandler(async (req: Request, res: Response, next: NextFunction): Promise<void> => {
-        // Validate section type
-        if (!sectionType) {
-            throw new ErrorWithStatus({
-                message: 'Section type is required',
-                status: HTTP_STATUS_CODES.BAD_REQUEST
-            });
-        }
+// /**
+//  * Middleware kiểm tra giới hạn section
+//  * @param sectionType Loại section cần kiểm tra
+//  */
+// export const checkSectionAccess = (sectionType: SectionType) => {
+//     return asyncHandler(async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+//         // Validate section type
+//         if (!sectionType) {
+//             throw new ErrorWithStatus({
+//                 message: 'Section type is required',
+//                 status: HTTP_STATUS_CODES.BAD_REQUEST
+//             });
+//         }
 
-        if (!req.user?._id) {
-            throw new ErrorWithStatus({
-                message: 'User not found',
-                status: HTTP_STATUS_CODES.UNAUTHORIZED
-            });
-        }
+//         if (!req.user?._id) {
+//             throw new ErrorWithStatus({
+//                 message: 'User not found',
+//                 status: HTTP_STATUS_CODES.UNAUTHORIZED
+//             });
+//         }
 
-        const user = await databaseServices.users.findOne({ _id: new ObjectId(req.user._id.toString()) });
-        if (!user) {
-            throw new ErrorWithStatus({
-                message: 'User not found',
-                status: HTTP_STATUS_CODES.NOT_FOUND
-            });
-        }
+//         const user = await databaseServices.users.findOne({ _id: new ObjectId(req.user._id.toString()) });
+//         if (!user) {
+//             throw new ErrorWithStatus({
+//                 message: 'User not found',
+//                 status: HTTP_STATUS_CODES.NOT_FOUND
+//             });
+//         }
 
-        // Kiểm tra section có nằm trong danh sách được phép không
-        if (!user.permissions?.allowedSections?.includes(sectionType)) {
-            throw new ErrorWithStatus({
-                message: `Section type "${sectionType}" is not available in your current plan.`,
-                status: HTTP_STATUS_CODES.FORBIDDEN
-            });
-        }
+//         // Kiểm tra section có nằm trong danh sách được phép không
+//         if (!user.permissions?.allowedSections?.includes(sectionType)) {
+//             throw new ErrorWithStatus({
+//                 message: `Section type "${sectionType}" is not available in your current plan.`,
+//                 status: HTTP_STATUS_CODES.FORBIDDEN
+//             });
+//         }
 
-        // Kiểm tra thêm giới hạn custom section
-        if (sectionType === 'custom') {
-            // Kiểm tra xem user có quyền tạo custom section không
-            if (!user.permissions?.maxCustomSections || user.permissions.maxCustomSections <= 0) {
-                throw new ErrorWithStatus({
-                    message: 'Custom sections are not available in your current plan.',
-                    status: HTTP_STATUS_CODES.FORBIDDEN
-                });
-            }
+//         // Kiểm tra thêm giới hạn custom section
+//         if (sectionType === 'custom') {
+//             // Kiểm tra xem user có quyền tạo custom section không
+//             if (!user.permissions?.maxCustomSections || user.permissions.maxCustomSections <= 0) {
+//                 throw new ErrorWithStatus({
+//                     message: 'Custom sections are not available in your current plan.',
+//                     status: HTTP_STATUS_CODES.FORBIDDEN
+//                 });
+//             }
 
-            // Nếu resume đã có trong request
-            if (req.resume) {
-                const resume = req.resume as unknown as { sections: Array<{ type: string }> };
-                const customSections = resume.sections?.filter(s => s.type === 'custom') || [];
+//             // Nếu resume đã có trong request
+//             if (req.resume) {
+//                 const resume = req.resume as unknown as { sections: Array<{ type: string }> };
+//                 const customSections = resume.sections?.filter(s => s.type === 'custom') || [];
 
-                if (customSections.length >= user.permissions.maxCustomSections) {
-                    throw new ErrorWithStatus({
-                        message: `Custom section limit reached (${user.permissions.maxCustomSections}). Please upgrade your account for more custom sections.`,
-                        status: HTTP_STATUS_CODES.FORBIDDEN
-                    });
-                }
-            }
-        }
+//                 if (customSections.length >= user.permissions.maxCustomSections) {
+//                     throw new ErrorWithStatus({
+//                         message: `Custom section limit reached (${user.permissions.maxCustomSections}). Please upgrade your account for more custom sections.`,
+//                         status: HTTP_STATUS_CODES.FORBIDDEN
+//                     });
+//                 }
+//             }
+//         }
 
-        next();
-    });
-};
+//         next();
+//     });
+// };
 
 /**
  * Middleware yêu cầu người dùng phải có gói premium

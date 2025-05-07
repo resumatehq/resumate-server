@@ -220,7 +220,7 @@ class UsersService {
       permissions = {
         maxResumes: 3,
         maxCustomSections: 0,
-        allowedSections: ['personal', 'education', 'experience', 'skills', 'summary'],
+        // allowedSections: ['personal', 'education', 'experience', 'skills', 'summary'],
         allowedFeatures: ['basic_editor', 'basic_ai'],
         allowedExportFormats: ['pdf'],
         aiRequests: {
@@ -236,11 +236,11 @@ class UsersService {
       permissions = {
         maxResumes: plan === 'premium_yearly' ? 20 : 10,
         maxCustomSections: 5,
-        allowedSections: [
-          'personal', 'education', 'experience', 'skills', 'summary',
-          'projects', 'certifications', 'languages', 'interests',
-          'awards', 'publications', 'references', 'custom'
-        ],
+        // allowedSections: [
+        //   'personal', 'education', 'experience', 'skills', 'summary',
+        //   'projects', 'certifications', 'languages', 'interests',
+        //   'awards', 'publications', 'references', 'custom'
+        // ],
         allowedFeatures: [
           'basic_editor', 'advanced_editor',
           'basic_ai', 'advanced_ai',

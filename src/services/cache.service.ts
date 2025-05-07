@@ -13,7 +13,7 @@ interface UserPermissions {
     maxResumes: number;
     maxCustomSections: number;
     allowedTemplates: string[];
-    allowedSections: string[];
+    // allowedSections: string[];
     allowedFeatures: string[];
     allowedExportFormats: string[];
 }

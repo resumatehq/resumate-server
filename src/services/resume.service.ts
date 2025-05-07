@@ -38,7 +38,7 @@ class ResumeService {
         }
 
         // Create default sections based on the template and user's allowed sections
-        const allowedSectionTypes = user.permissions.allowedSections || ['personal', 'summary', 'experience', 'education', 'skills'];
+        const allowedSectionTypes = ['personal', 'summary', 'experience', 'education', 'skills', 'languages', 'certifications', 'projects', 'references', 'interests', 'publications', 'awards', 'volunteer', 'custom'];
         const defaultSections: ISectionContent[] = [];
 
         // Personal section is always included
