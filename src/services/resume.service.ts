@@ -37,11 +37,9 @@ class ResumeService {
             });
         }
 
-        // Create default sections based on the template and user's allowed sections
         const allowedSectionTypes = ['personal', 'summary', 'experience', 'education', 'skills', 'languages', 'certifications', 'projects', 'references', 'interests', 'publications', 'awards', 'volunteer', 'custom'];
         const defaultSections: ISectionContent[] = [];
 
-        // Personal section is always included
         defaultSections.push({
             _id: new Types.ObjectId(),
             type: 'personal' as SectionType,
@@ -109,6 +107,7 @@ class ResumeService {
                 isPublished: false,
                 currentVersion: 1,
                 viewCount: 0,
+                downloadCount: 0,
                 shareableLink: null,
                 sharingOptions: {
                     password: null,
@@ -777,13 +776,13 @@ class ResumeService {
                     allowFeedback: false
                 }
             },
-            analytics: {
-                modificationCount: 0,
-                exportHistory: [],
-                shareViews: []
-            },
-            keywords: [],
-            aiSuggestions: [],
+            // analytics: {
+            //     modificationCount: 0,
+            //     exportHistory: [],
+            //     shareViews: []
+            // },
+            // keywords: [],
+            // aiSuggestions: [],
             createdAt: new Date(),
             updatedAt: new Date()
         };
