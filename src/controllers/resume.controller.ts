@@ -18,32 +18,18 @@ class ResumeController {
             });
         }
 
-        // Process sections to flatten the content structure if needed
         let processedSections;
 
         if (sections && Array.isArray(sections)) {
             processedSections = sections.map(section => {
-                const { content, ...rest } = section;
+                const { content, isVisible, ...rest } = section;
 
-                // Extract content from nested structure if needed
-                let flatContent = content;
-
-                if (content && !Array.isArray(content)) {
-                    // Check for nested arrays in content
-                    if (section.type === 'experience' && content.experiences) {
-                        flatContent = content.experiences;
-                    } else if (section.type === 'education' && content.educations) {
-                        flatContent = content.educations;
-                    } else if (section.type === 'skills' && content.skills) {
-                        flatContent = content.skills;
-                    } else if (content.items) {
-                        flatContent = content.items;
-                    }
-                }
-
+                // Keep content structure as is, don't try to flatten
+                // Just ensure it matches the schema expectations
                 return {
                     ...rest,
-                    content: Array.isArray(flatContent) ? flatContent : []
+                    enabled: isVisible,
+                    content: content || {} // Keep original content structure
                 };
             });
         }
@@ -88,15 +74,44 @@ class ResumeController {
                 let flatContent = content;
 
                 if (content && !Array.isArray(content)) {
-                    // Check for nested arrays in content
-                    if (section.type === 'experience' && content.experiences) {
-                        flatContent = content.experiences;
-                    } else if (section.type === 'education' && content.educations) {
-                        flatContent = content.educations;
-                    } else if (section.type === 'skills' && content.skills) {
-                        flatContent = content.skills;
-                    } else if (content.items) {
-                        flatContent = content.items;
+                    // Check for arrays within section types
+                    switch (section.type) {
+                        case 'experience':
+                            flatContent = content.experiences || [];
+                            break;
+                        case 'education':
+                            flatContent = content.educations || [];
+                            break;
+                        case 'skills':
+                            flatContent = content.skills || [];
+                            break;
+                        case 'projects':
+                            flatContent = content.projects || [];
+                            break;
+                        case 'certifications':
+                            flatContent = content.certifications || [];
+                            break;
+                        case 'awards':
+                            flatContent = content.awards || [];
+                            break;
+                        case 'volunteer':
+                            flatContent = content.volunteer || [];
+                            break;
+                        case 'languages':
+                            flatContent = content.languages || [];
+                            break;
+                        case 'publications':
+                            flatContent = content.publications || [];
+                            break;
+                        case 'references':
+                            flatContent = content.references || [];
+                            break;
+                        case 'interests':
+                            flatContent = content.interests || [];
+                            break;
+                        default:
+                            // For other types or as fallback, check for items array
+                            flatContent = content.items || [];
                     }
                 }
 

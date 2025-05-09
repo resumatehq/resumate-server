@@ -12,7 +12,6 @@ import crypto from 'crypto';
 import { getUserById } from "~/utils/user.utils";
 import QRCode from 'qrcode';
 
-
 // Helper function to generate random string
 const generateRandomString = (length: number): string => {
     return crypto.randomBytes(Math.ceil(length / 2))
@@ -30,7 +29,7 @@ class ResumeService {
         sections?: Array<{
             type: SectionType;
             title: string;
-            isVisible: boolean;
+            enabled: boolean;
             content: any;
         }>;
     }) {
@@ -52,7 +51,7 @@ class ResumeService {
                 _id: new Types.ObjectId(),
                 type: section.type as SectionType,
                 title: section.title,
-                enabled: section.isVisible,
+                enabled: section.enabled || true,
                 order: index + 1,
                 content: section.content || {},
                 settings: {
@@ -168,6 +167,10 @@ class ResumeService {
                         status: HTTP_STATUS_CODES.FORBIDDEN,
                     });
                 }
+                // Sort sections by order before returning cached data
+                if (cachedResume.sections) {
+                    cachedResume.sections.sort((a, b) => (a.order || 999) - (b.order || 999));
+                }
                 return cachedResume;
             }
         }
@@ -188,6 +191,11 @@ class ResumeService {
                 message: "You don't have permission to access this resume",
                 status: HTTP_STATUS_CODES.FORBIDDEN,
             });
+        }
+
+        // Sort sections by order before caching and returning
+        if (resume.sections) {
+            resume.sections.sort((a, b) => (a.order || 999) - (b.order || 999));
         }
 
         // Cache the resume (expires in 15 minutes)
@@ -781,7 +789,7 @@ class ResumeService {
             });
         }
 
-        let sections = [];
+        let sections: ISectionContent[] = [];
 
         // If sections are provided, use them
         if (data.sections && Array.isArray(data.sections) && data.sections.length > 0) {
@@ -791,28 +799,13 @@ class ResumeService {
                 title: section.title,
                 enabled: section.isVisible,
                 order: index + 1,
-                content: section.content || {},
+                content: section.content,
                 settings: {
                     visibility: 'public',
                     layout: 'standard',
                     styling: {}
                 }
             }));
-        } else {
-            // Create minimal default section (just personal info)
-            sections = [{
-                _id: new Types.ObjectId(),
-                type: 'personal' as SectionType,
-                title: 'Personal Information',
-                enabled: true,
-                order: 1,
-                content: {},
-                settings: {
-                    visibility: 'public',
-                    layout: 'standard',
-                    styling: {}
-                }
-            }];
         }
 
         // Create the empty resume document
@@ -846,7 +839,6 @@ class ResumeService {
 
         await usersService.incrementUsageCounter(userId, 'createdResumes');
 
-        // Clear any cached resume data for this user
         await this.clearUserResumesCache(userId);
 
         return createdResume;

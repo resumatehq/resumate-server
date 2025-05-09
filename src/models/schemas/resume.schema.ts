@@ -54,12 +54,21 @@ export interface IWorkExperienceContent extends ISectionContent {
 }
 
 // Skills section content structure
-export interface ISkillContent extends ISectionContent {
-  technical: string[];
-  soft: string[];
-  languages: string[];
+interface ITechnicalSkillCategory {
+  category: string;
+  skills: string[];
 }
 
+interface ILanguageSkill {
+  language: string;
+  proficiency: string;
+}
+
+export interface ISkillContent extends ISectionContent {
+  technical: ITechnicalSkillCategory[];
+  soft: string[];
+  languages: ILanguageSkill[];
+}
 // Project section content structure
 export interface IProjectContent extends ISectionContent {
   title: string;

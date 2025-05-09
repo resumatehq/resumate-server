@@ -16,7 +16,9 @@ class ResumeSectionService {
     async getAllSections(resumeId: string, userId: string): Promise<IResumeSection[]> {
         // Fetch fresh data from database and update cache
         const resume = await this.getFreshResumeData(resumeId, userId);
-        return resume.sections || [];
+        // Sort sections by order before returning
+        const sections = resume.sections || [];
+        return sections.sort((a, b) => (a.order || 999) - (b.order || 999));
     }
 
     /**
@@ -55,11 +57,34 @@ class ResumeSectionService {
             _id: new ObjectId()
         };
 
-        // Get the highest order and add 1
-        const maxOrder = resume.sections.reduce((max, section) =>
-            section.order > max ? section.order : max, 0);
+        // Check if the desired order is specified
+        if (newSection.order) {
+            // If order is specified, check if it's already taken
+            const existingOrderSection = resume.sections.find(s => s.order === newSection.order);
 
-        newSection.order = maxOrder + 1;
+            if (existingOrderSection) {
+                // If the order is already taken, shift all sections with equal or higher order
+                await databaseServices.resumes.updateMany(
+                    {
+                        _id: new ObjectId(resumeId),
+                        "sections.order": { $gte: newSection.order }
+                    },
+                    {
+                        $inc: { "sections.$[elem].order": 1 },
+                        $set: { updatedAt: new Date() }
+                    },
+                    {
+                        arrayFilters: [{ "elem.order": { $gte: newSection.order } }]
+                    }
+                );
+            }
+        } else {
+            // Get the highest order and add 1
+            const maxOrder = resume.sections.reduce((max, section) =>
+                section.order > max ? section.order : max, 0);
+
+            newSection.order = maxOrder + 1;
+        }
 
         // Add the section to the resume
         await databaseServices.resumes.updateOne(
@@ -108,6 +133,62 @@ class ResumeSectionService {
             });
         }
 
+        // Check if order is being updated
+        if (updateData.order !== undefined &&
+            updateData.order !== resume.sections[sectionIndex].order) {
+
+            // Get current order of the section
+            const currentOrder = resume.sections[sectionIndex].order;
+            const newOrder = updateData.order;
+
+            // Check if the new order is already taken
+            const existingOrderSection = resume.sections.find(
+                s => s.order === newOrder && s._id?.toString() !== sectionId
+            );
+
+            if (existingOrderSection) {
+                if (newOrder > currentOrder) {
+                    // Moving section to a higher order (downward)
+                    // Shift sections between current and new position
+                    await databaseServices.resumes.updateMany(
+                        {
+                            _id: new ObjectId(resumeId),
+                            "sections.order": { $gt: currentOrder, $lte: newOrder }
+                        },
+                        {
+                            $inc: { "sections.$[elem].order": -1 },
+                            $set: { updatedAt: new Date() }
+                        },
+                        {
+                            arrayFilters: [{
+                                "elem.order": { $gt: currentOrder, $lte: newOrder },
+                                "elem._id": { $ne: new ObjectId(sectionId) }
+                            }]
+                        }
+                    );
+                } else {
+                    // Moving section to a lower order (upward)
+                    // Shift sections between new and current position
+                    await databaseServices.resumes.updateMany(
+                        {
+                            _id: new ObjectId(resumeId),
+                            "sections.order": { $gte: newOrder, $lt: currentOrder }
+                        },
+                        {
+                            $inc: { "sections.$[elem].order": 1 },
+                            $set: { updatedAt: new Date() }
+                        },
+                        {
+                            arrayFilters: [{
+                                "elem.order": { $gte: newOrder, $lt: currentOrder },
+                                "elem._id": { $ne: new ObjectId(sectionId) }
+                            }]
+                        }
+                    );
+                }
+            }
+        }
+
         // Update fields except _id
         const { _id, ...updateFields } = updateData;
 
@@ -142,12 +223,6 @@ class ResumeSectionService {
         return updatedResume;
     }
 
-    /**
-     * Delete a section from a resume
-     * @param resumeId - Resume ID
-     * @param userId - User ID
-     * @param sectionId - Section ID
-     */
     async deleteSection(resumeId: string, userId: string, sectionId: string): Promise<IResume> {
         const resume = await this.getResumeOrFail(resumeId, userId);
 
@@ -195,7 +270,56 @@ class ResumeSectionService {
     ): Promise<IResume> {
         const resume = await this.getResumeOrFail(resumeId, userId);
 
-        const bulkOperations = sectionOrders.map(({ sectionId, order }) => {
+        // Step 1: Sort the sectionOrders by the target order to ensure consistent processing
+        const sortedSectionOrders = [...sectionOrders].sort((a, b) => a.order - b.order);
+
+        // Step 2: Create a map of current orders by section ID
+        const currentOrderMap = new Map(
+            resume.sections.map(section => [section._id?.toString(), section.order])
+        );
+
+        // Step 3: Validate that all section IDs exist
+        for (const { sectionId } of sortedSectionOrders) {
+            if (!currentOrderMap.has(sectionId)) {
+                throw new ErrorWithStatus({
+                    message: `Section with ID ${sectionId} not found`,
+                    status: HTTP_STATUS_CODES.NOT_FOUND
+                });
+            }
+        }
+
+        // Step 4: Create a map to track target orders and avoid duplicates
+        const targetOrderMap = new Map<number, string>();
+        const normalizedOrders: Array<{ sectionId: string; order: number }> = [];
+
+        // Assign normalized orders to avoid duplicates
+        sortedSectionOrders.forEach(({ sectionId, order }) => {
+            // If this order is already assigned, find the next available
+            let targetOrder = order;
+            while (targetOrderMap.has(targetOrder)) {
+                targetOrder++;
+            }
+
+            targetOrderMap.set(targetOrder, sectionId);
+            normalizedOrders.push({ sectionId, order: targetOrder });
+        });
+
+        // Step 5: Update all non-mentioned sections to ensure no order conflicts
+        resume.sections.forEach(section => {
+            const sectionId = section._id?.toString();
+            if (sectionId && !sortedSectionOrders.some(item => item.sectionId === sectionId)) {
+                // This section is not in the reorder list, ensure it doesn't conflict
+                let currentOrder = section.order;
+                while (targetOrderMap.has(currentOrder)) {
+                    currentOrder += 1000; // Move to a high range to avoid conflicts
+                }
+                targetOrderMap.set(currentOrder, sectionId);
+                normalizedOrders.push({ sectionId, order: currentOrder });
+            }
+        });
+
+        // Step 6: Create bulk update operations with normalized orders
+        const bulkOperations = normalizedOrders.map(({ sectionId, order }) => {
             const sectionIndex = resume.sections.findIndex(
                 section => section._id?.toString() === sectionId
             );
@@ -225,7 +349,7 @@ class ResumeSectionService {
                 resumeId,
                 userId,
                 "reorder",
-                { sectionOrders }
+                { sectionOrders: normalizedOrders }
             );
 
             // Get fresh data from database with force refresh

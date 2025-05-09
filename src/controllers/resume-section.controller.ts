@@ -129,30 +129,75 @@ class ResumeSectionController {
         }).send(res);
     };
 
-    // Save section and continue to the next step
     saveAndContinueSection = async (req: Request, res: Response) => {
-        const { user_id } = req.decoded_authorization as TokenPayload;
-        const { resumeId, sectionId } = req.params;
-        const sectionData = req.body;
+        try {
+            const { user_id } = req.decoded_authorization as TokenPayload;
+            const { resumeId, sectionId } = req.params;
+            const { sectionData } = req.body;
 
-        // First update the section
-        const updatedResume = await resumeSectionService.updateSection(
-            resumeId,
-            user_id,
-            sectionId,
-            sectionData
-        );
-
-        // Then clean up any draft data for this section
-        await draftService.clearSectionDraft(resumeId, user_id, sectionId);
-
-        new OK({
-            message: "Section saved successfully",
-            data: {
-                resume: updatedResume,
-                savedSectionId: sectionId
+            // Validate inputs
+            if (!resumeId || !sectionId) {
+                throw new ErrorWithStatus({
+                    message: "Missing required parameters",
+                    status: HTTP_STATUS_CODES.BAD_REQUEST
+                });
             }
-        }).send(res);
+
+            // Standardize section data format 
+            const standardizedSectionData = this.standardizeSectionFormat(sectionData || req.body);
+
+            // OPTIMIZATION 1: Batch operations
+            // First, update the section
+            const updatedResume = await resumeSectionService.updateSection(
+                resumeId,
+                user_id,
+                sectionId,
+                standardizedSectionData
+            );
+
+            // OPTIMIZATION 2: Concurrent execution for non-dependent operations
+            // Clear draft data in parallel with finding the current section
+            const clearDraftPromise = draftService.clearSectionDraft(resumeId, user_id, sectionId);
+
+            // Find the current section in the updated resume
+            const currentSection = updatedResume.sections.find(
+                section => section._id?.toString() === sectionId
+            );
+
+            // Wait for the draft to be cleared
+            await clearDraftPromise;
+
+            // OPTIMIZATION 3: Simplified response structure
+            // Only return essential information
+            new OK({
+                message: "Section saved successfully",
+                data: {
+                    // Include only required fields from the resume
+                    resumeId: updatedResume._id,
+                    title: updatedResume.title,
+                    // Only return the saved section info instead of the entire resume
+                    savedSection: currentSection ? {
+                        id: currentSection._id,
+                        type: currentSection.type,
+                        title: currentSection.title,
+                        order: currentSection.order,
+                        enabled: currentSection.enabled
+                    } : null
+                }
+            }).send(res);
+
+        } catch (error) {
+            // Improved error handling
+            if (error instanceof ErrorWithStatus) {
+                throw error;
+            }
+
+            console.error('Error in saveAndContinueSection:', error);
+            throw new ErrorWithStatus({
+                message: "Failed to save section",
+                status: HTTP_STATUS_CODES.INTERNAL_SERVER_ERROR,
+            });
+        }
     };
 
     // Create or update section and create resume if needed
@@ -263,7 +308,7 @@ class ResumeSectionController {
             return this.standardizeSectionFormat(sectionData.sectionData);
         }
 
-        const { type, title, enabled, isVisible, content } = sectionData;
+        const { type, title, enabled, isVisible, content, order } = sectionData;
 
         // Ensure we have a valid type
         if (!type) {
@@ -273,30 +318,158 @@ class ResumeSectionController {
             });
         }
 
-        let standardizedContent = [];
         let sectionType = type.toLowerCase();
+        let standardizedContent = content;
 
-        // Extract content from nested structure or use as is if already flat
+        // Process content based on section type
         if (content) {
-            if (Array.isArray(content)) {
-                // Content is already a flat array
-                standardizedContent = content;
-            } else if (typeof content === 'object') {
-                // Handle nested structure
-                if (sectionType === 'experience' && content.experiences && Array.isArray(content.experiences)) {
-                    standardizedContent = content.experiences;
-                } else if (sectionType === 'education' && content.educations && Array.isArray(content.educations)) {
-                    standardizedContent = content.educations;
-                } else if (sectionType === 'skills' && content.skills && Array.isArray(content.skills)) {
-                    standardizedContent = content.skills;
-                } else if (content.items && Array.isArray(content.items)) {
-                    standardizedContent = content.items;
-                } else {
-                    // If we have an object but no arrays inside, wrap it as a single item array
-                    const hasProperties = Object.keys(content).length > 0;
-                    standardizedContent = hasProperties ? [content] : [];
-                }
+            switch (sectionType) {
+                case 'experience':
+                    // Experience should be an array of work experiences
+                    standardizedContent = Array.isArray(content.experiences)
+                        ? content.experiences
+                        : Array.isArray(content)
+                            ? content
+                            : [content];
+                    break;
+
+                case 'education':
+                    // Education should be an array of education entries
+                    standardizedContent = Array.isArray(content.educations)
+                        ? content.educations
+                        : Array.isArray(content)
+                            ? content
+                            : [content];
+                    break;
+
+                case 'skills':
+                    // Skills should maintain its structure with technical, soft, and languages
+                    standardizedContent = {
+                        technical: Array.isArray(content.technical)
+                            ? content.technical
+                            : content.technical
+                                ? [content.technical]
+                                : [],
+                        soft: Array.isArray(content.soft)
+                            ? content.soft
+                            : content.soft
+                                ? [content.soft]
+                                : [],
+                        languages: Array.isArray(content.languages)
+                            ? content.languages
+                            : content.languages
+                                ? [content.languages]
+                                : []
+                    };
+                    break;
+
+                case 'projects':
+                    // Projects should be an array of project entries
+                    standardizedContent = Array.isArray(content.projects)
+                        ? content.projects
+                        : Array.isArray(content)
+                            ? content
+                            : [content];
+                    break;
+
+                case 'certifications':
+                    // Certifications should be an array of certification entries
+                    standardizedContent = Array.isArray(content.certifications)
+                        ? content.certifications
+                        : Array.isArray(content)
+                            ? content
+                            : [content];
+                    break;
+
+                case 'awards':
+                    // Awards should be an array of award entries
+                    standardizedContent = Array.isArray(content.awards)
+                        ? content.awards
+                        : Array.isArray(content)
+                            ? content
+                            : [content];
+                    break;
+
+                case 'languages':
+                    // Languages should be an array of language proficiency entries
+                    standardizedContent = Array.isArray(content.languages)
+                        ? content.languages
+                        : Array.isArray(content)
+                            ? content
+                            : [content];
+                    break;
+
+                case 'volunteer':
+                    // Volunteer experience should be an array of volunteer entries
+                    standardizedContent = Array.isArray(content.volunteer)
+                        ? content.volunteer
+                        : Array.isArray(content)
+                            ? content
+                            : [content];
+                    break;
+
+                case 'publications':
+                    // Publications should be an array of publication entries
+                    standardizedContent = Array.isArray(content.publications)
+                        ? content.publications
+                        : Array.isArray(content)
+                            ? content
+                            : [content];
+                    break;
+
+                case 'interests':
+                    // Interests can be an object with professional and personal interests
+                    standardizedContent = {
+                        professional: Array.isArray(content.professional)
+                            ? content.professional
+                            : content.professional
+                                ? [content.professional]
+                                : [],
+                        personal: Array.isArray(content.personal)
+                            ? content.personal
+                            : content.personal
+                                ? [content.personal]
+                                : []
+                    };
+                    break;
+
+                case 'personal':
+                    // Personal information should be a single object
+                    standardizedContent = typeof content === 'object' ? content : {};
+                    break;
+
+                case 'summary':
+                    // Summary can be a string or an object with summary and highlights
+                    standardizedContent = typeof content === 'string'
+                        ? { summary: content, highlights: [] }
+                        : {
+                            summary: content.summary || '',
+                            highlights: Array.isArray(content.highlights)
+                                ? content.highlights
+                                : []
+                        };
+                    break;
+
+                case 'custom':
+                    // Custom sections can maintain their original structure
+                    standardizedContent = content;
+                    break;
+
+                default:
+                    // For unknown section types, preserve the content as is
+                    standardizedContent = content;
             }
+        } else {
+            // Initialize empty content based on section type
+            standardizedContent = sectionType === 'skills'
+                ? { technical: [], soft: [], languages: [] }
+                : sectionType === 'interests'
+                    ? { professional: [], personal: [] }
+                    : sectionType === 'personal'
+                        ? {}
+                        : sectionType === 'summary'
+                            ? { summary: '', highlights: [] }
+                            : [];
         }
 
         return {
@@ -304,7 +477,7 @@ class ResumeSectionController {
             type: sectionType as SectionType,
             title: title || this.getDefaultTitleForType(sectionType),
             enabled: enabled !== undefined ? enabled : isVisible !== undefined ? isVisible : true,
-            order: sectionData.order || 999, // High default order
+            order: order || 999, // High default order
             content: standardizedContent,
             settings: sectionData.settings || {
                 visibility: 'public',
