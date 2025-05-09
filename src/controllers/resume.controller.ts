@@ -8,7 +8,7 @@ import HTTP_STATUS_CODES from "~/core/statusCodes";
 class ResumeController {
     createResume = async (req: Request, res: Response) => {
         const { user_id } = req.decoded_authorization as TokenPayload;
-        const { title, templateId, targetPosition, industry, language } = req.body;
+        const { title, templateId, targetPosition, industry, language, sections } = req.body;
 
         // Validate required fields
         if (!title || !templateId) {
@@ -18,12 +18,44 @@ class ResumeController {
             });
         }
 
+        // Process sections to flatten the content structure if needed
+        let processedSections;
+
+        if (sections && Array.isArray(sections)) {
+            processedSections = sections.map(section => {
+                const { content, ...rest } = section;
+
+                // Extract content from nested structure if needed
+                let flatContent = content;
+
+                if (content && !Array.isArray(content)) {
+                    // Check for nested arrays in content
+                    if (section.type === 'experience' && content.experiences) {
+                        flatContent = content.experiences;
+                    } else if (section.type === 'education' && content.educations) {
+                        flatContent = content.educations;
+                    } else if (section.type === 'skills' && content.skills) {
+                        flatContent = content.skills;
+                    } else if (content.items) {
+                        flatContent = content.items;
+                    }
+                }
+
+                return {
+                    ...rest,
+                    content: Array.isArray(flatContent) ? flatContent : []
+                };
+            });
+        }
+
+        // @ts-ignore - we'll handle the type in the service
         const resume = await resumeService.createResume(user_id, {
             title,
             templateId,
             targetPosition,
             industry,
             language,
+            sections: processedSections
         });
 
         new OK({
@@ -35,7 +67,7 @@ class ResumeController {
     // Create an empty resume without any sections initially
     createEmptyResume = async (req: Request, res: Response) => {
         const { user_id } = req.decoded_authorization as TokenPayload;
-        const { title, templateId, targetPosition, industry, language } = req.body;
+        const { title, templateId, targetPosition, industry, language, sections } = req.body;
 
         // Validate required fields
         if (!title || !templateId) {
@@ -45,12 +77,44 @@ class ResumeController {
             });
         }
 
+        // Process sections to flatten the content structure if needed
+        let processedSections;
+
+        if (sections && Array.isArray(sections)) {
+            processedSections = sections.map(section => {
+                const { content, ...rest } = section;
+
+                // Extract content from nested structure if needed
+                let flatContent = content;
+
+                if (content && !Array.isArray(content)) {
+                    // Check for nested arrays in content
+                    if (section.type === 'experience' && content.experiences) {
+                        flatContent = content.experiences;
+                    } else if (section.type === 'education' && content.educations) {
+                        flatContent = content.educations;
+                    } else if (section.type === 'skills' && content.skills) {
+                        flatContent = content.skills;
+                    } else if (content.items) {
+                        flatContent = content.items;
+                    }
+                }
+
+                return {
+                    ...rest,
+                    content: Array.isArray(flatContent) ? flatContent : []
+                };
+            });
+        }
+
+        // @ts-ignore - we'll handle the type in the service
         const resume = await resumeService.createEmptyResume(user_id, {
             title,
             templateId,
             targetPosition,
             industry,
             language,
+            sections: processedSections
         });
 
         new OK({

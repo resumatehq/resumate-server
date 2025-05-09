@@ -21,9 +21,9 @@ resumeRouter.delete('/:resumeId', checkResumeOwnership, resumeController.deleteR
 
 // Section operations
 resumeRouter.get('/:resumeId/sections', checkResumeOwnership, resumeSectionController.getAllSections)
-resumeRouter.post('/:resumeId/sections', checkResumeOwnership, resumeSectionController.createOrUpdateSection) // chưa test
-resumeRouter.post('/:resumeId/sections/reorder', checkResumeOwnership, resumeSectionController.reorderSections) // chưa test
-resumeRouter.put('/:resumeId/sections/:sectionId', checkResumeOwnership, resumeSectionController.updateSection) // chưa test
+resumeRouter.post('/:resumeId/sections', checkResumeOwnership, resumeSectionController.createOrUpdateSection)
+resumeRouter.post('/:resumeId/sections/reorder', checkResumeOwnership, resumeSectionController.reorderSections)
+resumeRouter.put('/:resumeId/sections/:sectionId', checkResumeOwnership, resumeSectionController.updateSection)
 resumeRouter.get('/:resumeId/sections/:sectionType', checkResumeOwnership, resumeSectionController.getSection)
 resumeRouter.delete('/:resumeId/sections/:sectionId', checkResumeOwnership, resumeSectionController.deleteSection)
 resumeRouter.patch('/:resumeId/sections/:sectionId/visibility', checkResumeOwnership, resumeSectionController.toggleSectionVisibility)

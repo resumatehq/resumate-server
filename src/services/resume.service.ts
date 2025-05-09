@@ -27,6 +27,12 @@ class ResumeService {
         targetPosition?: string;
         industry?: string;
         language?: string;
+        sections?: Array<{
+            type: SectionType;
+            title: string;
+            isVisible: boolean;
+            content: any;
+        }>;
     }) {
         const user = await getUserById(userId)
 
@@ -38,59 +44,77 @@ class ResumeService {
         }
 
         const allowedSectionTypes = ['personal', 'summary', 'experience', 'education', 'skills', 'languages', 'certifications', 'projects', 'references', 'interests', 'publications', 'awards', 'volunteer', 'custom'];
-        const defaultSections: ISectionContent[] = [];
+        let defaultSections: ISectionContent[] = [];
 
-        defaultSections.push({
-            _id: new Types.ObjectId(),
-            type: 'personal' as SectionType,
-            title: 'Personal Information',
-            enabled: true,
-            order: 1,
-            content: {},
-            settings: {
-                visibility: 'public',
-                layout: 'standard',
-                styling: {}
-            }
-        });
+        // If sections are provided, use them instead of default ones
+        if (data.sections && Array.isArray(data.sections) && data.sections.length > 0) {
+            defaultSections = data.sections.map((section, index) => ({
+                _id: new Types.ObjectId(),
+                type: section.type as SectionType,
+                title: section.title,
+                enabled: section.isVisible,
+                order: index + 1,
+                content: section.content || {},
+                settings: {
+                    visibility: 'public',
+                    layout: 'standard',
+                    styling: {}
+                }
+            }));
+        } else {
+            // Default implementation for when no sections are provided
+            defaultSections.push({
+                _id: new Types.ObjectId(),
+                type: 'personal' as SectionType,
+                title: 'Personal Information',
+                enabled: true,
+                order: 1,
+                content: {},
+                settings: {
+                    visibility: 'public',
+                    layout: 'standard',
+                    styling: {}
+                }
+            });
 
-        // Add other sections based on user permissions
-        let order = 2;
-        const sectionTitles: Record<string, string> = {
-            'personal': 'Personal Information',
-            'summary': 'Professional Summary',
-            'experience': 'Work Experience',
-            'education': 'Education',
-            'skills': 'Skills',
-            'custom': 'Custom Section',
-            'languages': 'Languages',
-            'certifications': 'Certifications',
-            'projects': 'Projects',
-            'references': 'References',
-            'interests': 'Interests',
-            'publications': 'Publications',
-            'awards': 'Awards and Honors',
-            'volunteer': 'Volunteer Experience'
-        };
+            // Add other sections based on user permissions
+            let order = 2;
+            const sectionTitles: Record<string, string> = {
+                'personal': 'Personal Information',
+                'summary': 'Professional Summary',
+                'experience': 'Work Experience',
+                'education': 'Education',
+                'skills': 'Skills',
+                'custom': 'Custom Section',
+                'languages': 'Languages',
+                'certifications': 'Certifications',
+                'projects': 'Projects',
+                'references': 'References',
+                'interests': 'Interests',
+                'publications': 'Publications',
+                'awards': 'Awards and Honors',
+                'volunteer': 'Volunteer Experience'
+            };
 
-        // Add other allowed sections
-        allowedSectionTypes.forEach((sectionType: string) => {
-            if (sectionType !== 'personal') { // Personal already added
-                defaultSections.push({
-                    _id: new Types.ObjectId(),
-                    type: sectionType as SectionType,
-                    title: sectionTitles[sectionType] || `${sectionType.charAt(0).toUpperCase() + sectionType.slice(1)}`,
-                    enabled: true,
-                    order: order++,
-                    content: {},
-                    settings: {
-                        visibility: 'public',
-                        layout: 'standard',
-                        styling: {}
-                    }
-                });
-            }
-        });
+            // Add other allowed sections
+            allowedSectionTypes.forEach((sectionType: string) => {
+                if (sectionType !== 'personal') { // Personal already added
+                    defaultSections.push({
+                        _id: new Types.ObjectId(),
+                        type: sectionType as SectionType,
+                        title: sectionTitles[sectionType] || `${sectionType.charAt(0).toUpperCase() + sectionType.slice(1)}`,
+                        enabled: true,
+                        order: order++,
+                        content: {},
+                        settings: {
+                            visibility: 'public',
+                            layout: 'standard',
+                            styling: {}
+                        }
+                    });
+                }
+            });
+        }
 
         // Create a new resume document
         const newResume = {
@@ -741,6 +765,12 @@ class ResumeService {
         targetPosition?: string;
         industry?: string;
         language?: string;
+        sections?: Array<{
+            type: SectionType;
+            title: string;
+            isVisible: boolean;
+            content: any;
+        }>;
     }) {
         const user = await getUserById(userId)
 
@@ -751,8 +781,41 @@ class ResumeService {
             });
         }
 
+        let sections = [];
 
-        // Create a new empty resume document
+        // If sections are provided, use them
+        if (data.sections && Array.isArray(data.sections) && data.sections.length > 0) {
+            sections = data.sections.map((section, index) => ({
+                _id: new Types.ObjectId(),
+                type: section.type as SectionType,
+                title: section.title,
+                enabled: section.isVisible,
+                order: index + 1,
+                content: section.content || {},
+                settings: {
+                    visibility: 'public',
+                    layout: 'standard',
+                    styling: {}
+                }
+            }));
+        } else {
+            // Create minimal default section (just personal info)
+            sections = [{
+                _id: new Types.ObjectId(),
+                type: 'personal' as SectionType,
+                title: 'Personal Information',
+                enabled: true,
+                order: 1,
+                content: {},
+                settings: {
+                    visibility: 'public',
+                    layout: 'standard',
+                    styling: {}
+                }
+            }];
+        }
+
+        // Create the empty resume document
         const newResume = {
             userId: new ObjectId(userId),
             title: data.title,
@@ -760,7 +823,7 @@ class ResumeService {
             targetPosition: data.targetPosition || '',
             industry: data.industry || '',
             language: data.language || 'en',
-            sections: [],
+            sections: sections,
             metadata: {
                 createdAt: new Date(),
                 updatedAt: new Date(),
@@ -775,16 +838,7 @@ class ResumeService {
                     allowDownload: false,
                     allowFeedback: false
                 }
-            },
-            // analytics: {
-            //     modificationCount: 0,
-            //     exportHistory: [],
-            //     shareViews: []
-            // },
-            // keywords: [],
-            // aiSuggestions: [],
-            createdAt: new Date(),
-            updatedAt: new Date()
+            }
         };
 
         const result = await databaseServices.resumes.insertOne(newResume as any);
@@ -792,6 +846,7 @@ class ResumeService {
 
         await usersService.incrementUsageCounter(userId, 'createdResumes');
 
+        // Clear any cached resume data for this user
         await this.clearUserResumesCache(userId);
 
         return createdResume;
