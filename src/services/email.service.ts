@@ -1,17 +1,30 @@
 import nodemailer from 'nodemailer';
 import { envConfig } from '~/constants/config';
+import { logger } from '~/loggers/my-logger.log';
 
 class EmailService {
   private transporter: nodemailer.Transporter;
 
   constructor() {
     this.transporter = nodemailer.createTransport({
+      service: 'gmail',
       host: envConfig.smtpHost,
       port: envConfig.smtpPort,
       secure: envConfig.smtpSecure,
       auth: {
         user: envConfig.smtpUser,
         pass: envConfig.smtpPassword
+      },
+      tls: {
+        rejectUnauthorized: false
+      }
+    });
+
+    this.transporter.verify((error, success) => {
+      if (error) {
+        logger.error('SMTP connection error:', error instanceof Error ? error.message : String(error));
+      } else {
+        logger.info('SMTP server is ready to send emails');
       }
     });
   }
@@ -40,7 +53,20 @@ class EmailService {
       `
     };
 
-    return this.transporter.sendMail(mailOptions);
+    try {
+      const info = await this.transporter.sendMail(mailOptions);
+      logger.info(`Verification email sent to ${to}`, '', '', {
+        messageId: info.messageId,
+        recipient: to
+      });
+      return info;
+    } catch (error) {
+      logger.error(`Failed to send verification email to ${to}`, '', '', {
+        error: error instanceof Error ? error.message : 'Unknown error',
+        recipient: to
+      });
+      throw error;
+    }
   }
 }
 

@@ -12,6 +12,8 @@ import { envConfig } from './constants/config'
 import cronService from './services/cron.service'
 import { logger } from './loggers/my-logger.log'
 import SocketManager from './socket'
+import "~/config/passport";
+import passport from "passport";
 
 // Khởi tạo ứng dụng Express
 const app: Application = express()
@@ -38,6 +40,7 @@ app.use(
 app.use(compression())
 app.use(morgan('dev'))
 app.use(cors())
+app.use(passport.initialize())
 app.use(express.json())
 app.use(express.urlencoded({ extended: true }))
 
@@ -57,10 +60,8 @@ app.use((req, res) => {
   }).send(res)
 })
 
-// init error handler
 app.use(defaultErrorHandler)
 
-// Sử dụng server HTTP thay vì app.listen để Socket.IO hoạt động
 server.listen(envConfig.port, () => {
   console.log('Welcome to Express & TypeScript Server')
   console.log(`Server is Fire at http://localhost:${envConfig.port}`)
