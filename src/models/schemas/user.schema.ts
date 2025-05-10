@@ -1,6 +1,5 @@
 import { ObjectId } from 'mongodb'
 import { envConfig } from '~/constants/config'
-import { SectionType } from './resume.schema';
 
 export type UserTier = 'free' | 'premium' | 'admin';
 export type UserPlan = 'free' | 'premium_monthly' | 'premium_yearly';
@@ -9,7 +8,6 @@ export type userVerificationStatus = 'unverified' | 'verified'
 export interface IUserPermissions {
   maxResumes: number;
   maxCustomSections: number;
-  // allowedSections: SectionType[];
   allowedFeatures: string[];
   allowedExportFormats: ('pdf' | 'docx' | 'png' | 'json')[];
   allowedTemplates?: ObjectId[];
@@ -96,7 +94,6 @@ export const defaultUserStructure: Partial<IUser> = {
   permissions: {
     maxResumes: 3,
     maxCustomSections: 0,
-    // allowedSections: ['personal', 'summary', 'experience', 'education', 'skills', 'languages', 'certifications', 'projects', 'references', 'interests', 'publications', 'awards', 'volunteer', 'custom'],
     allowedFeatures: ['basic_editor', 'basic_ai'],
     allowedExportFormats: ['pdf'],
     aiRequests: {
