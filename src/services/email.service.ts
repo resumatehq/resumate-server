@@ -101,7 +101,7 @@ class EmailService {
       throw new Error('Email service temporarily unavailable. Please try again later.');
     }
 
-    const verificationLink = `${envConfig.clientUrl}/verify-email?token=${verificationToken}`;
+    const verificationLink = `${envConfig.clientUrl}/auth/sign-up/verify-email?token=${verificationToken}`;
 
     // Fallback inline template in case we can't load the file template
     const fallbackTemplate = `
