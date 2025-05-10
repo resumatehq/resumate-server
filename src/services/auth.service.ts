@@ -150,7 +150,7 @@ class AuthService {
       verify: userVerificationStatus.Unverified,
       tier
     })
-    // Mã hóa mật khẩu
+
     const hashedPassword = await bcrypt.hash(payload.password, salt)
 
     const { confirm_password, ...userData } = payload
@@ -177,18 +177,30 @@ class AuthService {
       })
     )
 
-    // Send verification email
-    await emailService.sendVerificationEmail(payload.email, payload.username, email_verify_token)
+    try {
+      // Send verification email
+      await emailService.sendVerificationEmail(payload.email, payload.username, email_verify_token)
 
-    logger.info('User registered successfully', 'AuthService.register', '', {
-      userId: user_id.toString(),
-      email: payload.email
-    })
+      logger.info('User registered successfully and verification email sent', 'AuthService.register', '', {
+        userId: user_id.toString(),
+        email: payload.email
+      })
+    } catch (error) {
+      // Log the error but don't fail the registration
+      logger.error('Failed to send verification email during registration', 'AuthService.register', '', {
+        userId: user_id.toString(),
+        email: payload.email,
+        error: error instanceof Error ? error.message : String(error)
+      })
+
+      // We still continue with registration - user can request email resend later
+    }
 
     return {
       user_id: user_id.toString(),
       email: payload.email,
-      username: payload.username
+      username: payload.username,
+      email_sent: true // This will be used by the controller to inform about email status
     }
   }
 
