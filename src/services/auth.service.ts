@@ -150,7 +150,7 @@ class AuthService {
       verify: userVerificationStatus.Unverified,
       tier
     })
-    // Mã hóa mật khẩu
+
     const hashedPassword = await bcrypt.hash(payload.password, salt)
 
     const { confirm_password, ...userData } = payload
@@ -177,18 +177,30 @@ class AuthService {
       })
     )
 
-    // Send verification email
-    await emailService.sendVerificationEmail(payload.email, payload.username, email_verify_token)
+    try {
+      // Send verification email
+      await emailService.sendVerificationEmail(payload.email, payload.username, email_verify_token)
 
-    logger.info('User registered successfully', 'AuthService.register', '', {
-      userId: user_id.toString(),
-      email: payload.email
-    })
+      logger.info('User registered successfully and verification email sent', 'AuthService.register', '', {
+        userId: user_id.toString(),
+        email: payload.email
+      })
+    } catch (error) {
+      // Log the error but don't fail the registration
+      logger.error('Failed to send verification email during registration', 'AuthService.register', '', {
+        userId: user_id.toString(),
+        email: payload.email,
+        error: error instanceof Error ? error.message : String(error)
+      })
+
+      // We still continue with registration - user can request email resend later
+    }
 
     return {
       user_id: user_id.toString(),
       email: payload.email,
-      username: payload.username
+      username: payload.username,
+      email_sent: true // This will be used by the controller to inform about email status
     }
   }
 
@@ -289,49 +301,69 @@ class AuthService {
   }
 
   async googleLogin(user: any) {
-    console.log('user', user)
     if (!user) {
       throw new ErrorWithStatus({
         status: HTTP_STATUS_CODES.UNAUTHORIZED,
         message: USER_MESSAGES.USER_NOT_FOUND
-      })
+      });
     }
 
-    // update last login time and status
+    // Đảm bảo người dùng luôn được verify khi đăng nhập bằng Google
     await databaseServices.users.updateOne(
       { _id: new ObjectId(user._id) },
       {
         $set: {
+          verify: userVerificationStatus.Verified,
           last_login_time: new Date(),
-          status: 'online'
+          status: 'online',
+          updated_at: new Date()
         }
       }
-    )
+    );
 
-    logger.info(`Google login attempt for user: ${user.email}`);
+    logger.info(`Google login attempt for user: ${user.email}`, 'AuthService.googleLogin', '', {
+      userId: user._id.toString(),
+      email: user.email
+    });
+
+    // Lấy thông tin user đã cập nhật từ database
+    const updatedUser = await databaseServices.users.findOne({ _id: new ObjectId(user._id) });
+
+    if (!updatedUser) {
+      logger.error('Updated user not found after Google login', 'AuthService.googleLogin', '', {
+        userId: user._id.toString()
+      });
+      throw new ErrorWithStatus({
+        status: HTTP_STATUS_CODES.NOT_FOUND,
+        message: USER_MESSAGES.USER_NOT_FOUND
+      });
+    }
 
     const [access_token, refresh_token] = await this.signAccessAndRefreshToken({
-      user_id: user._id.toString(),
-      verify: userVerificationStatus.Verified,
-      tier: user.tier || 'free'
-    })
+      user_id: updatedUser._id.toString(),
+      verify: userVerificationStatus.Verified, // Luôn sử dụng Verified cho Google login
+      tier: updatedUser.tier || 'free'
+    });
 
-    await databaseServices.tokens.deleteMany({ user_id: user._id, type: tokenType.RefreshToken })
+    await databaseServices.tokens.deleteMany({
+      user_id: updatedUser._id,
+      type: tokenType.RefreshToken
+    });
 
-    const { exp } = await this.decodeRefreshToken(refresh_token)
+    const { exp } = await this.decodeRefreshToken(refresh_token);
 
     await databaseServices.tokens.insertOne(
       new Token({
-        user_id: user._id.toString(),
+        user_id: updatedUser._id.toString(),
         token: refresh_token,
         type: tokenType.RefreshToken,
         expires_at: new Date(exp * 1000)
       })
-    )
+    );
 
     // Fetch complete user data for response
     const userResponse = await databaseServices.users.findOne(
-      { _id: new ObjectId(user._id.toString()) },
+      { _id: new ObjectId(updatedUser._id.toString()) },
       {
         projection: {
           password: 0,
@@ -340,24 +372,32 @@ class AuthService {
           forgot_password: 0
         }
       }
-    )
+    );
 
     if (!userResponse) {
+      logger.error('User response not found after Google login', 'AuthService.googleLogin', '', {
+        userId: updatedUser._id.toString()
+      });
       throw new ErrorWithStatus({
         status: HTTP_STATUS_CODES.NOT_FOUND,
         message: USER_MESSAGES.USER_NOT_FOUND
-      })
+      });
     }
 
     // Store updated user in Redis cache
     const redis = await redisClient;
-    await redis.setObject(`user:${user._id.toString()}`, userResponse, 1800);
+    await redis.setObject(`user:${updatedUser._id.toString()}`, userResponse, 1800);
+
+    logger.info('Google login successful', 'AuthService.googleLogin', '', {
+      userId: updatedUser._id.toString(),
+      email: updatedUser.email
+    });
 
     return {
       access_token,
       refresh_token,
       user: userResponse
-    }
+    };
   }
 
   async logout({ user_id, refresh_token }: { user_id: string; refresh_token: string }) {
@@ -443,7 +483,7 @@ class AuthService {
 
     // Blacklist old refresh token first
     const redis = await redisClient;
-    const THIRTY_DAYS_IN_SECONDS = 30 * 24 * 60 * 60; // 30 days in seconds
+    const THIRTY_DAYS_IN_SECONDS = 7 * 24 * 60 * 60; // 7 days in seconds
 
     try {
       const blacklistKey = `blacklist:token:${refresh_token}`;
@@ -518,9 +558,34 @@ class AuthService {
 
     logger.info('Token refreshed successfully', 'AuthService.refreshToken', '', { userId: user_id })
 
+    // Fetch updated user data for response
+    const userResponse = await databaseServices.users.findOne(
+      { _id: new ObjectId(user_id) },
+      {
+        projection: {
+          password: 0,
+          forgot_password_token: 0,
+          email_verify_token: 0,
+          forgot_password: 0
+        }
+      }
+    )
+
+    if (!userResponse) {
+      logger.error('User not found after token refresh', 'AuthService.refreshToken', '', { userId: user_id })
+      throw new ErrorWithStatus({
+        status: HTTP_STATUS_CODES.NOT_FOUND,
+        message: USER_MESSAGES.USER_NOT_FOUND
+      })
+    }
+
+    // Update user in Redis cache
+    await redis.setObject(`user:${user_id}`, userResponse, 1800);
+
     return {
       access_token,
-      refresh_token: new_refresh_token
+      refresh_token: new_refresh_token,
+      user: userResponse
     }
   }
 

@@ -23,31 +23,48 @@ passport.use(
             try {
                 logger.info(`Google auth attempt for profile ID ${profile.id}`, "passport.googleStrategy");
 
-                // First check if user exists with Google ID
                 const existingUserByGoogleId = await databaseServices.users.findOne({ googleId: profile.id });
                 if (existingUserByGoogleId) {
                     logger.info(`User found with Google ID: ${profile.id}`, "passport.googleStrategy");
+
+                    if (existingUserByGoogleId.verify !== userVerificationStatus.Verified) {
+                        await databaseServices.users.updateOne(
+                            { _id: existingUserByGoogleId._id },
+                            {
+                                $set: {
+                                    verify: userVerificationStatus.Verified,
+                                    updated_at: new Date()
+                                }
+                            }
+                        );
+                        logger.info(`Updated user verification status: ${existingUserByGoogleId._id.toString()}`, "passport.googleStrategy");
+
+                        const updatedUser = await databaseServices.users.findOne({ _id: existingUserByGoogleId._id });
+                        if (!updatedUser) {
+                            logger.error(`Failed to find updated user: ${existingUserByGoogleId._id.toString()}`, "passport.googleStrategy");
+                            return done(new Error('User update failed'), false);
+                        }
+                        return done(null, updatedUser);
+                    }
+
                     return done(null, existingUserByGoogleId);
                 }
 
-                // Check if email is available
                 const email = profile.emails?.[0]?.value;
                 if (!email) {
                     logger.error("Email is required for Google authentication", "passport.googleStrategy");
                     return done(new Error('Email is required for authentication'), false);
                 }
 
-                // Check if user exists with that email
                 const existingUserByEmail = await databaseServices.users.findOne({ email });
 
                 if (existingUserByEmail) {
-                    // Update existing user with Google ID
                     await databaseServices.users.updateOne(
                         { _id: existingUserByEmail._id },
                         {
                             $set: {
                                 googleId: profile.id,
-                                verify: userVerificationStatus.Verified, // Auto-verify users who sign in with Google
+                                verify: userVerificationStatus.Verified,
                                 avatar_url: existingUserByEmail.avatar_url || profile.photos?.[0]?.value || '',
                                 updated_at: new Date(),
                                 last_login_time: new Date()
@@ -57,7 +74,6 @@ passport.use(
 
                     logger.info(`Updated existing user with Google ID: ${profile.id}`, "passport.googleStrategy");
 
-                    // Get updated user
                     const updatedUser = await databaseServices.users.findOne({ _id: existingUserByEmail._id });
 
                     if (!updatedUser) {
@@ -68,11 +84,9 @@ passport.use(
                     return done(null, updatedUser);
                 }
 
-                // Create new user
                 const userId = new ObjectId();
                 const profileJson = profile._json as any;
 
-                // Create user object with proper structure
                 const newUser: Partial<IUser> = {
                     _id: userId,
                     googleId: profile.id,
@@ -80,7 +94,7 @@ passport.use(
                     username: profile.displayName,
                     avatar_url: profile.photos?.[0]?.value || '',
                     date_of_birth: profileJson.birthday ? new Date(profileJson.birthday) : new Date(),
-                    verify: userVerificationStatus.Verified, // Auto-verify for Google accounts
+                    verify: userVerificationStatus.Verified,
                     ...defaultUserStructure,
                     last_login_time: new Date(),
                 };
