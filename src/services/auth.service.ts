@@ -139,68 +139,64 @@ class AuthService {
     const salt = 10
     const tier = 'free'
 
-    logger.info('Registering new user', 'AuthService.register', '', {
-      email: payload.email,
-      username: payload.username
-    })
+    // Tạo mã token xác minh email và hash password đồng thời
+    const [email_verify_token, hashedPassword] = await Promise.all([
+      this.signEmailVerifyToken({
+        user_id: user_id.toString(),
+        verify: userVerificationStatus.Unverified,
+        tier
+      }),
+      bcrypt.hash(payload.password, salt)
+    ]);
 
-    // Tạo mã token xác minh email
-    const email_verify_token = await this.signEmailVerifyToken({
-      user_id: user_id.toString(),
-      verify: userVerificationStatus.Unverified,
-      tier
-    })
-
-    const hashedPassword = await bcrypt.hash(payload.password, salt)
-
-    const { confirm_password, ...userData } = payload
+    const { confirm_password, avatar_url, ...userData } = payload
 
     const newUser: IUser = {
       _id: user_id,
       ...userData,
       ...defaultUserStructure,
       password: hashedPassword,
+      avatar_url: avatar_url || null
     } as IUser
 
-    await databaseServices.users.insertOne(newUser)
     const { iat: iat_email_verify_token, exp: exp_email_verify_token } = await this.decodeEmailVerifyToken(
       email_verify_token
     )
 
-    await databaseServices.tokens.insertOne(
-      new Token({
-        user_id,
-        token: email_verify_token,
-        type: tokenType.EmailVerificationToken,
-        expires_at: new Date((exp_email_verify_token as number) * 1000),
-        created_at: new Date((iat_email_verify_token as number) * 1000)
-      })
-    )
+    const tokenDoc = new Token({
+      user_id,
+      token: email_verify_token,
+      type: tokenType.EmailVerificationToken,
+      expires_at: new Date((exp_email_verify_token as number) * 1000),
+      created_at: new Date((iat_email_verify_token as number) * 1000)
+    });
 
-    try {
-      // Send verification email
-      await emailService.sendVerificationEmail(payload.email, payload.username, email_verify_token)
+    await Promise.all([
+      databaseServices.users.insertOne(newUser),
+      databaseServices.tokens.insertOne(tokenDoc)
+    ]);
 
-      logger.info('User registered successfully and verification email sent', 'AuthService.register', '', {
-        userId: user_id.toString(),
-        email: payload.email
+    emailService.sendVerificationEmail(payload.email, payload.username, email_verify_token)
+      .then(() => {
+        logger.info('Verification email sent successfully', 'AuthService.register', '', {
+          userId: user_id.toString(),
+          email: payload.email
+        });
       })
-    } catch (error) {
-      // Log the error but don't fail the registration
-      logger.error('Failed to send verification email during registration', 'AuthService.register', '', {
-        userId: user_id.toString(),
-        email: payload.email,
-        error: error instanceof Error ? error.message : String(error)
-      })
-
-      // We still continue with registration - user can request email resend later
-    }
+      .catch((error) => {
+        logger.error('Failed to send verification email during registration', 'AuthService.register', '', {
+          userId: user_id.toString(),
+          email: payload.email,
+          error: error instanceof Error ? error.message : String(error)
+        });
+      });
 
     return {
       user_id: user_id.toString(),
       email: payload.email,
       username: payload.username,
-      email_sent: true // This will be used by the controller to inform about email status
+      avatar_url: payload.avatar_url || '',
+      email_sent: true
     }
   }
 
@@ -242,7 +238,6 @@ class AuthService {
       tier: user.tier || 'free'
     })
 
-    // câp nhật trạng thái và thời gian đăng nhập cuối cùng
     await databaseServices.users.updateOne(
       { _id: new ObjectId(user._id.toString()) },
       {

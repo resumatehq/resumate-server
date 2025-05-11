@@ -7,6 +7,8 @@ declare global {
       decoded_authorization?: TokenPayload,
       user?: IUser;
       resume?: IResume
+      file_url?: string;
+      file_urls?: string[];
     }
   }
 }

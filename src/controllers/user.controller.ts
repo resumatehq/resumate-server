@@ -73,6 +73,11 @@ class UserController {
 
     updateProfile = async (req: Request, res: Response) => {
         const { user_id } = req.decoded_authorization as TokenPayload;
+
+        if (req.file_url) {
+            req.body.avatar_url = req.file_url;
+        }
+
         const {
             username,
             avatar_url,

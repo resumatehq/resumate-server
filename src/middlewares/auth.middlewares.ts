@@ -75,11 +75,28 @@ const avatarURLSchema: ParamSchema = {
   isLength: {
     options: {
       min: 0,
-      max: 500
+      max: 2000
     },
-    errorMessage: 'Avatar URL length must be between 0 and 500 characters'
+    errorMessage: 'Avatar URL length must be between 0 and 2000 characters'
   },
-  trim: true
+  trim: true,
+  custom: {
+    options: (value) => {
+      if (value === '') {
+        return true;
+      }
+
+      if (value) {
+        try {
+          new URL(value);
+          return true;
+        } catch (err) {
+          throw new Error('Avatar URL must be a valid URL');
+        }
+      }
+      return true;
+    }
+  }
 }
 
 const passwordShema: ParamSchema = {

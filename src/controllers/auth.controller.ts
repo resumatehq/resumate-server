@@ -15,7 +15,22 @@ interface CustomRequest extends Request {
 
 class AuthController {
     register = async (req: Request, res: Response) => {
+        if (req.file_url) {
+            console.log('Avatar URL from upload middleware:', req.file_url);
+            req.body.avatar_url = req.file_url;
+        }
+
+        console.log('Register request body:', {
+            ...req.body,
+            password: '******',
+            confirm_password: '******',
+            avatar_url: req.body.avatar_url || 'No avatar provided'
+        });
+
         const result = await authService.register(req.body)
+
+        console.log('Registration complete, user ID:', result.user_id);
+
         new CREATED({
             message: USER_MESSAGES.REGISTER_SUCCESSFULLY,
             data: {
@@ -23,6 +38,7 @@ class AuthController {
                     id: result.user_id,
                     email: result.email,
                     username: result.username,
+                    avatar_url: result.avatar_url,
                     verification_status: 'pending'
                 },
                 next_steps: {

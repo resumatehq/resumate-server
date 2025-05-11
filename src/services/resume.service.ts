@@ -806,6 +806,20 @@ class ResumeService {
                     styling: {}
                 }
             }));
+        } else {
+            sections.push({
+                _id: new Types.ObjectId(),
+                type: 'personal' as SectionType,
+                title: 'Personal Information',
+                enabled: true,
+                order: 1,
+                content: {},
+                settings: {
+                    visibility: 'public',
+                    layout: 'standard',
+                    styling: {}
+                }
+            });
         }
 
         // Create the empty resume document
