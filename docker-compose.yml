@@ -1,0 +1,42 @@
+version: '3.8'
+
+services:
+  backend:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: resumate-server
+    restart: always
+    ports:
+      - "8080:8080"
+    depends_on:
+      - redis
+    environment:
+      - NODE_ENV=development
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+      - REDIS_PASSWORD=resumate123
+    networks:
+      - resumate-network
+    volumes:
+      - ./src:/app/src
+
+  redis:
+    image: redis:alpine
+    container_name: resumate-redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis-data:/data
+    command: redis-server --appendonly yes --requirepass ${REDIS_PASSWORD:-resumate123}
+    restart: always
+    networks:
+      - resumate-network
+
+networks:
+  resumate-network:
+    driver: bridge
+
+volumes:
+  redis-data:
+    driver: local 

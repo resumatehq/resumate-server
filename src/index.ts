@@ -1,4 +1,5 @@
 import express, { Application } from 'express'
+import http from 'http'
 import helmet from 'helmet'
 import compression from 'compression'
 import morgan from 'morgan'
@@ -8,9 +9,18 @@ import { defaultErrorHandler } from '~/middlewares/error.middlewares'
 import { NOT_FOUND } from '~/core/error.response'
 import rootRouterV1 from './routes'
 import { envConfig } from './constants/config'
+import cronService from './services/cron.service'
+import { logger } from './loggers/my-logger.log'
+import SocketManager from './socket'
+import "~/config/passport";
+import passport from "passport";
 
-// Khởi tạo socket service
+// Khởi tạo ứng dụng Express
 const app: Application = express()
+const server = http.createServer(app)
+
+// Khởi tạo Socket.IO
+// const socketManager = new SocketManager(server)
 
 // init middleware
 app.use(
@@ -21,6 +31,7 @@ app.use(
         scriptSrc: ["'self'", "'unsafe-inline'", "'unsafe-eval'"],
         styleSrc: ["'self'", "'unsafe-inline'"],
         imgSrc: ["'self'", "data:"],
+        connectSrc: ["'self'", "wss:", "ws:"]
       },
     },
   })
@@ -29,9 +40,11 @@ app.use(
 app.use(compression())
 app.use(morgan('dev'))
 app.use(cors())
+app.use(passport.initialize())
 app.use(express.json())
 app.use(express.urlencoded({ extended: true }))
 
+// Kết nối database
 databaseServices.connect()
 
 // init route
@@ -47,9 +60,32 @@ app.use((req, res) => {
   }).send(res)
 })
 
-// init error handler
 app.use(defaultErrorHandler)
-app.listen(envConfig.port, () => {
+
+server.listen(envConfig.port, () => {
   console.log('Welcome to Express & TypeScript Server')
   console.log(`Server is Fire at http://localhost:${envConfig.port}`)
+  console.log(`WebSocket server is running on ws://localhost:${envConfig.port}`)
 })
+
+// Graceful shutdown
+process.on('SIGTERM', () => {
+  logger.info('SIGTERM signal received: closing HTTP server')
+  cronService.stopAll()
+  server.close(() => {
+    logger.info('HTTP server closed')
+    process.exit(0)
+  })
+})
+
+process.on('SIGINT', () => {
+  logger.info('SIGINT signal received: closing HTTP server')
+  cronService.stopAll()
+  server.close(() => {
+    logger.info('HTTP server closed')
+    process.exit(0)
+  })
+})
+
+// const metrics = cronService.getJobMetrics();
+// console.log(metrics);

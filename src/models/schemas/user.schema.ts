@@ -1,83 +1,135 @@
-import { Schema, model, Document, Types } from 'mongoose'
-import { envConfig } from '~/constants/config';
-import { EMAIL_REGEXP, NAME_REGEXP } from '~/helpers/regex'
+import { ObjectId } from 'mongodb'
+import { envConfig } from '~/constants/config'
 
-const UserSchema = new Schema({
-    username: {
-        type: String,
-        trim: true,
-        unique: true,
-        match: NAME_REGEXP,
-        required: true,
-        index: true
-    },
-    email: {
-        type: String,
-        trim: true,
-        unique: true,
-        required: true,
-        match: EMAIL_REGEXP,
-        index: true
-    },
-    password: {
-        type: String,
-        required: function (this: any) {
-            return !this.googleId;
-        }
-    },
-    googleId: {
-        type: String,
-        unique: true,
-        sparse: true
-    },
-    date_of_birth: { type: Date, default: Date.now },
-    avatar_url: {
-        type: String,
-        default: ''
-    },
-    status: {
-        type: String,
-        enum: ['online', 'offline'],
-        default: 'offline'
-    },
-    forgot_password: {
-        type: String,
-        default: ''
-    },
-    verify: {
-        type: String,
-        enum: ["unverified", "verified", "expired"],
-        default: "unverified"
-    },
-    role: {
-        type: String,
-        enum: ['admin', 'user'],
-        default: 'user',
-    },
-    created_at: { type: Date, default: Date.now },
-    updated_at: { type: Date, default: Date.now },
-    last_login_time: { type: Date, default: Date.now }
-})
-
-export interface IUser extends Document {
-    _id: Types.ObjectId
-    username: string
-    email: string
-    password?: string // Mật khẩu không bắt buộc nếu đăng nhập bằng Google
-    googleId?: string // ID từ Google
-    date_of_birth: Date
-    avatar_url?: string
-    bio: string
-    status: string
-    tag: string
-    forgot_password: string
-    verify: string
-    role: string
-    created_at: Date
-    updated_at: Date
-    last_login_time: Date
+export type UserTier = 'free' | 'premium' | 'admin';
+export type UserPlan = 'free' | 'premium_monthly' | 'premium_yearly';
+export type SubscriptionStatus = 'active' | 'inactive' | 'cancelled' | 'expired' | 'trial';
+export type userVerificationStatus = 'unverified' | 'verified'
+export interface IUserPermissions {
+  maxResumes: number;
+  maxCustomSections: number;
+  allowedFeatures: string[];
+  allowedExportFormats: ('pdf' | 'docx' | 'png' | 'json')[];
+  allowedTemplates?: ObjectId[];
+  aiRequests: {
+    maxPerDay: number;
+    maxPerMonth: number;
+    usedToday?: number;
+    usedThisMonth?: number;
+    lastResetDay?: Date;
+    lastResetMonth?: Date;
+  };
 }
 
-const User = model<IUser>(envConfig.dbUserCollection, UserSchema)
+export interface IUserSubscription {
+  plan: UserPlan;
+  status: SubscriptionStatus;
+  hasTrial: boolean;
+  startDate?: Date;
+  endDate?: Date;
+  expiryDate?: Date;
+  trialEndsAt?: Date;
+  cancelledAt?: Date;
+  paymentMethod?: string;
+  paymentId?: string;
+  paymentProvider?: 'stripe' | 'paypal' | null;
+  autoRenew: boolean;
+}
 
-export default User
+export interface IUserUsage {
+  createdResumes: number
+  aiRequestsCount: number
+  exportsCount: {
+    pdf: number
+    docx: number
+    png: number
+  }
+}
+
+export interface IUser {
+  _id?: ObjectId
+  username: string
+  email: string
+  password?: string
+  googleId?: string
+  date_of_birth: Date
+  avatar_url?: string
+  tier: UserTier;
+  subscription: IUserSubscription;
+  permissions: IUserPermissions;
+  bio?: string;
+  industry?: string;
+  experience?: string;
+  location?: string;
+  phone?: string;
+  social_links?: {
+    linkedin?: string;
+    github?: string;
+    twitter?: string;
+    website?: string;
+  };
+  usage: IUserUsage,
+  verify: userVerificationStatus
+  created_at: Date
+  updated_at: Date
+  last_login_time: Date
+}
+
+export const defaultUserStructure: Partial<IUser> = {
+  tier: 'free',
+  subscription: {
+    plan: 'free',
+    status: 'active',
+    hasTrial: false,
+    paymentProvider: null,
+    autoRenew: true,
+    startDate: undefined,
+    endDate: undefined,
+    expiryDate: undefined,
+    trialEndsAt: undefined,
+    cancelledAt: undefined,
+    paymentMethod: undefined,
+    paymentId: undefined
+  },
+  permissions: {
+    maxResumes: 3,
+    maxCustomSections: 0,
+    allowedFeatures: ['basic_editor', 'basic_ai'],
+    allowedExportFormats: ['pdf'],
+    aiRequests: {
+      maxPerDay: 10,
+      maxPerMonth: 100,
+      usedToday: 0,
+      usedThisMonth: 0,
+      lastResetDay: new Date(),
+      lastResetMonth: new Date()
+    }
+  },
+  usage: {
+    createdResumes: 0,
+    aiRequestsCount: 0,
+    exportsCount: {
+      pdf: 0,
+      docx: 0,
+      png: 0
+    }
+  },
+  bio: undefined,
+  industry: undefined,
+  experience: undefined,
+  location: undefined,
+  phone: undefined,
+  social_links: {
+    linkedin: undefined,
+    github: undefined,
+    twitter: undefined,
+    website: undefined
+  },
+  googleId: undefined,
+  avatar_url: undefined,
+  verify: 'unverified',
+  created_at: new Date(),
+  updated_at: new Date(),
+}
+
+export const userCollection = envConfig.dbUserCollection

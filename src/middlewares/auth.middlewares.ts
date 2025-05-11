@@ -11,6 +11,7 @@ import { JsonWebTokenError } from 'jsonwebtoken'
 import HTTP_STATUS_CODES from '~/core/statusCodes'
 import databaseServices from '~/services/database.service'
 import { tokenType } from '~/constants/enums'
+import redisClient from '~/config/redis';
 
 const usernameSchema: ParamSchema = {
   notEmpty: {
@@ -41,6 +42,27 @@ const dateOfBirthSchema: ParamSchema = {
     options: {
       strict: true,
       strictSeparator: true
+    }
+  },
+  custom: {
+    options: async (value: string) => {  // Change type to string since that's what we'll receive
+      const dateValue = new Date(value);  // Convert string to Date object
+      const today = new Date();
+      let age = today.getFullYear() - dateValue.getFullYear();
+      const monthDiff = today.getMonth() - dateValue.getMonth();
+
+      if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < dateValue.getDate())) {
+        age--;
+      }
+
+      if (age > 120) {
+        throw new ErrorWithStatus({
+          message: 'Invalid date of birth: Age cannot be more than 120 years',
+          status: HTTP_STATUS_CODES.BAD_REQUEST
+        });
+      }
+
+      return true
     }
   }
 }
@@ -101,7 +123,7 @@ const confirmPasswordSchema: ParamSchema = {
   custom: {
     options: (value, { req }) => {
       if (value !== req.body.password) {
-        throw new Error(USER_MESSAGES.CONFIRM_PASSWORD_MUST_BE_MATCH)
+        throw new Error(USER_MESSAGES.CONFIRM_PASSWORD_MUST_MATCH)
       }
       return value
     }
@@ -163,7 +185,13 @@ export const accessTokenValidation = validate(
       authorization: {
         custom: {
           options: async (value: string, { req }) => {
-            const access_token = (value || '').split(' ')[1]
+            let access_token: string | undefined = undefined
+
+            if (value) {
+              access_token = (value || '').split(' ')[1]
+            } else if (req.cookies && req.cookies.jwt) {
+              access_token = req.cookies.jwt
+            }
 
             if (!access_token) {
               throw new ErrorWithStatus({
@@ -201,7 +229,15 @@ export const refreshTokenValidation = validate(
         trim: true,
         custom: {
           options: async (value: string, { req }) => {
-            if (!value) {
+            let refresh_token: string | undefined
+
+            if (value) {
+              refresh_token = value
+            } else if (req.cookies && req.cookies.jwt) {
+              refresh_token = req.cookies.jwt
+            }
+
+            if (!refresh_token) {
               throw new ErrorWithStatus({
                 message: USER_MESSAGES.REFRESH_TOKEN_REQUIRED,
                 status: HTTP_STATUS_CODES.UNAUTHORIZED
@@ -217,6 +253,15 @@ export const refreshTokenValidation = validate(
               if (!refreshTokenExist) {
                 throw new ErrorWithStatus({
                   message: USER_MESSAGES.REFRESH_TOKEN_IS_INVALID,
+                  status: HTTP_STATUS_CODES.UNAUTHORIZED
+                })
+              }
+
+              const redis = await redisClient;
+              const isBlacklisted = await redis.getObject(`bl_${refreshTokenExist}`);
+              if (isBlacklisted) {
+                throw new ErrorWithStatus({
+                  message: 'Please log in again',
                   status: HTTP_STATUS_CODES.UNAUTHORIZED
                 })
               }
@@ -241,3 +286,4 @@ export const refreshTokenValidation = validate(
     ['body']
   )
 )
+

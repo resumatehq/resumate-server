@@ -6,7 +6,7 @@ import { USER_MESSAGES } from "~/constants/messages";
 import HTTP_STATUS_CODES from "~/core/statusCodes";
 import { CREATED, OK } from "~/core/succes.response";
 import { TokenPayload } from "~/models/requests/user.request";
-import accessService from "~/services/auth.service";
+import authService from "~/services/auth.service";
 import { ErrorWithStatus } from "~/utils/error.utils";
 
 interface CustomRequest extends Request {
@@ -15,15 +15,26 @@ interface CustomRequest extends Request {
 
 class AuthController {
     register = async (req: Request, res: Response) => {
-        const result = await accessService.register(req.body)
+        const result = await authService.register(req.body)
         new CREATED({
             message: USER_MESSAGES.REGISTER_SUCCESSFULLY,
-            data: result
+            data: {
+                user: {
+                    id: result.user_id,
+                    email: result.email,
+                    username: result.username,
+                    verification_status: 'pending'
+                },
+                next_steps: {
+                    action: 'verify_email',
+                    message: 'Please check your email to verify your account'
+                }
+            }
         }).send(res);
     }
 
     login = async (req: Request, res: Response) => {
-        const result = await accessService.login(req.body)
+        const result = await authService.login(req.body)
         new OK({
             message: USER_MESSAGES.LOGIN_SUCCESSFULLY,
             data: result
@@ -31,49 +42,52 @@ class AuthController {
     }
 
     googleLogin = async (req: Request, res: Response) => {
-        const queryString = (await import('querystring')).default
-        const user = req.body;
+        const queryString = (await import('querystring')).default;
 
-        if (!user) {
+        if (!req.user) {
             throw new ErrorWithStatus({
                 status: HTTP_STATUS_CODES.UNAUTHORIZED,
                 message: USER_MESSAGES.USER_NOT_FOUND
-            })
+            });
         }
 
-        const { access_token, refresh_token } = await accessService.googleLogin(req.user);
+        const { access_token, refresh_token, user: userResponse } = await authService.googleLogin(req.user);
 
         const redirectUrl = envConfig.googleRedirectClientUrl;
         if (!redirectUrl) {
             throw new ErrorWithStatus({
                 status: HTTP_STATUS_CODES.INTERNAL_SERVER_ERROR,
                 message: 'Redirect URL is not configured'
-            })
+            });
         }
+
+        const userData = {
+            _id: userResponse._id,
+            email: userResponse.email,
+            username: userResponse.username,
+            avatar_url: userResponse.avatar_url,
+            verify: userResponse.verify
+        };
 
         const qs = queryString.stringify({
             access_token,
             refresh_token,
+            user: encodeURIComponent(JSON.stringify(userData)),
             status: HTTP_STATUS_CODES.OK
-        })
+        });
+
         res.redirect(`${redirectUrl}?${qs}`);
     }
 
     logout = async (req: Request, res: Response) => {
-        // const access_token = req.headers.authorization?.split(' ')[1] as string;
         const { refresh_token } = req.body;
         const { user_id } = req.decoded_authorization as TokenPayload;
 
-        await accessService.logout({
+        await authService.logout({
             user_id,
             refresh_token,
-            // req_data: {
-            //     user_agent: req.headers['user-agent'],
-            //     ip_address: req.ip
-            // }
         });
 
-        // Xóa refresh token cookie
         res.clearCookie('refresh_token', {
             httpOnly: true,
             secure: process.env.NODE_ENV === 'production',
@@ -87,9 +101,9 @@ class AuthController {
 
     refreshToken = async (req: CustomRequest, res: Response) => {
         const { refresh_token } = req.body;
-        const { user_id, role, verify } = req.decoded_refresh_token as TokenPayload
+        const { user_id, verify, tier } = req.decoded_refresh_token as TokenPayload
 
-        const result = await accessService.refreshToken({ user_id, role, verify, refresh_token });
+        const result = await authService.refreshToken({ user_id, verify, tier, refresh_token });
 
         new OK({
             message: USER_MESSAGES.REFRESH_TOKEN_SUCCESSFULLY,
@@ -107,7 +121,7 @@ class AuthController {
             });
         }
 
-        const result = await accessService.verifyEmail(token);
+        const result = await authService.verifyEmail(token);
 
         new OK({
             message: USER_MESSAGES.EMAIL_VERIFIED_SUCCESSFULLY,
@@ -125,7 +139,7 @@ class AuthController {
             });
         }
 
-        const result = await accessService.resendVerificationEmail(email);
+        const result = await authService.resendVerificationEmail(email);
 
         new OK({
             message: USER_MESSAGES.RESEND_VERIFY_EMAIL_SUCCESSFULLY

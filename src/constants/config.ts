@@ -16,6 +16,8 @@ export const envConfig = {
   port: (process.env.PORT as string) || 8000,
   clientUrl: process.env.CLIENT_URL as string,
 
+  nodeEnv: process.env.NODE_ENV as string,
+
   // Database Connection
   dbUsername: process.env.DB_USERNAME as string,
   dbPassword: process.env.DB_PASSWORD as string,
@@ -47,8 +49,28 @@ export const envConfig = {
   googleCallbackURLProd: process.env.GOOGLE_CALLBACK_URL_PROD as string,
   googleRedirectClientUrl: process.env.GOOGLE_REDIRECT_CLIENT_URL as string,
 
-  // User Collections
+  // redis
+  redisHost: process.env.REDIS_HOST as string,
+  redisPort: parseInt(process.env.REDIS_PORT as string),
+  redisPassword: process.env.REDIS_PASSWORD as string,
+  redisDb: parseInt(process.env.REDIS_DB as string),
+  redisExpireTime: process.env.REDIS_EXPIRE_TIME as number | StringValue,
+  redisPrefix: process.env.REDIS_PREFIX as string,
+  redisUrl: process.env.REDIS_URL ||
+    (process.env.REDIS_PASSWORD
+      ? `redis://:${process.env.REDIS_PASSWORD}@${process.env.REDIS_HOST}:${process.env.REDIS_PORT}/${process.env.REDIS_DB || 0}`
+      : `redis://${process.env.REDIS_HOST}:${process.env.REDIS_PORT}/${process.env.REDIS_DB || 0}`),
+
+  // Collections
   dbUserCollection: process.env.DB_USER_COLLECTION as string,
-  dbAdminCollection: process.env.DB_ADMIN_COLLECTION as string,
   dbTokenCollection: process.env.DB_TOKEN_COLLECTION as string,
+  dbResumeCollection: process.env.DB_RESUME_COLLECTION as string,
+  dbResumeDraftCollection: process.env.DB_RESUME_DRAFT_COLLECTION as string,
+  dbResumeVersionCollection: process.env.DB_RESUME_VERSION_COLLECTION as string,
+  dbTemplateCollection: process.env.DB_TEMPLATE_COLLECTION as string,
+  dbFeatureConfigCollection: process.env.DB_FEATURE_CONFIG_COLLECTION as string,
+  dbIndustryCollection: process.env.DB_INDUSTRY_COLLCTION as string,
+  dbAiPromptCollection: process.env.DB_AI_PROMPT as string,
+  dbJobPositionCollection: process.env.DB_JOB_POSITION_COLLECTION as string,
+  dbAccessLogCollection: process.env.DB_ACCESS_LOG_COLLECTION as string
 } as const
