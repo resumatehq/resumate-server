@@ -7,6 +7,7 @@ export interface RegisterReqBody {
     password: string
     confirm_password: string
     date_of_birth: Date
+    avatar_url?: string
 }
 export interface LoginReqBody {
     email: string

@@ -4,6 +4,8 @@ import { accessTokenValidation } from '~/middlewares/auth.middlewares'
 import { wrapRequestHandler } from '~/utils/wrapHandler'
 import { generalRateLimiter } from '~/middlewares/rate-limiter.middleware'
 import { validateProfileUpdate, validateSubscriptionUpgrade } from '~/middlewares/user.middleware'
+import { uploadSingle } from '~/config/multer'
+import { uploadMiddleware } from '~/middlewares/upload.middlware'
 
 const usersRouters = Router()
 
@@ -13,6 +15,8 @@ usersRouters.use(accessTokenValidation)
 usersRouters.get('/profile', generalRateLimiter(20, 60 * 1000), wrapRequestHandler(userController.getProfile))
 usersRouters.put('/profile',
     generalRateLimiter(10, 60 * 1000),
+    uploadSingle('avatar'),
+    uploadMiddleware,
     validateProfileUpdate,
     wrapRequestHandler(userController.updateProfile)
 )

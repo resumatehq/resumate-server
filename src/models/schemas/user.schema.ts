@@ -53,7 +53,7 @@ export interface IUser {
   password?: string
   googleId?: string
   date_of_birth: Date
-  avatar_url?: string
+  avatar_url?: string | null
   tier: UserTier;
   subscription: IUserSubscription;
   permissions: IUserPermissions;
@@ -126,7 +126,7 @@ export const defaultUserStructure: Partial<IUser> = {
     website: undefined
   },
   googleId: undefined,
-  avatar_url: undefined,
+  avatar_url: null,
   verify: 'unverified',
   created_at: new Date(),
   updated_at: new Date(),
