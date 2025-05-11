@@ -61,6 +61,20 @@ export const envConfig = {
       ? `redis://:${process.env.REDIS_PASSWORD}@${process.env.REDIS_HOST}:${process.env.REDIS_PORT}/${process.env.REDIS_DB || 0}`
       : `redis://${process.env.REDIS_HOST}:${process.env.REDIS_PORT}/${process.env.REDIS_DB || 0}`),
 
+  // Cloudinary
+  cloudinaryCloudName: process.env.CLOUDINARY_CLOUD_NAME as string,
+  cloudinaryApiKey: process.env.CLOUDINARY_API_KEY as string,
+  cloudinaryApiSecret: process.env.CLOUDINARY_API_SECRET as string,
+
+  // AWS S3
+  awsRegion: process.env.AWS_REGION as string,
+  awsAccessKeyId: process.env.AWS_ACCESS_KEY_ID as string,
+  awsSecretAccessKey: process.env.AWS_SECRET_ACCESS_KEY as string,
+  awsS3Bucket: process.env.AWS_S3_BUCKET as string,
+
+  // File Upload
+  defaultUploadService: (process.env.DEFAULT_UPLOAD_SERVICE as 'cloudinary' | 's3') || 'cloudinary',
+
   // Collections
   dbUserCollection: process.env.DB_USER_COLLECTION as string,
   dbTokenCollection: process.env.DB_TOKEN_COLLECTION as string,
