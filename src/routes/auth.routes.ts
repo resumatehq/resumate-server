@@ -4,10 +4,18 @@ import authController from '~/controllers/auth.controller';
 import { accessTokenValidation, loginValidation, refreshTokenValidation, registerValidation } from '~/middlewares/auth.middlewares'
 import { wrapRequestHandler } from '~/utils/wrapHandler'
 import { generalRateLimiter, loginRateLimiter, registerRateLimiter, resendEmailRateLimiter } from '~/middlewares/rate-limiter.middleware'
+import { uploadSingle } from '~/config/multer';
+import { uploadMiddleware } from '~/middlewares/upload.middlware';
 
 const authRoutes = Router();
 
-authRoutes.post('/register', registerRateLimiter, registerValidation, wrapRequestHandler(authController.register))
+authRoutes.post('/register',
+  registerRateLimiter,
+  uploadSingle('avatar'),
+  uploadMiddleware,
+  registerValidation,
+  wrapRequestHandler(authController.register)
+);
 
 authRoutes.post('/login', loginRateLimiter, loginValidation, wrapRequestHandler(authController.login))
 
