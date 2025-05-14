@@ -7,6 +7,8 @@ import { generalRateLimiter } from '~/middlewares/rate-limiter.middleware'
 
 const resumeRouter = Router()
 
+resumeRouter.get('/shared/:shareableLink', resumeController.getPublicResume)
+
 resumeRouter.use(accessTokenValidation)
 
 // Resume CRUD operations
@@ -45,6 +47,5 @@ resumeRouter.post('/:resumeId/share', checkResumeOwnership, resumeController.sha
 resumeRouter.put('/:resumeId/share', checkResumeOwnership, resumeController.updateShareSettings)
 resumeRouter.delete('/:resumeId/share', checkResumeOwnership, resumeController.revokeShareAccess)
 resumeRouter.get('/:resumeId/share/qrcode', checkResumeOwnership, resumeController.generateQRCode)
-resumeRouter.get('/shared/:shareableLink', resumeController.getPublicResume)
 
 export default resumeRouter 
