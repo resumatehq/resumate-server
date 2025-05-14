@@ -162,7 +162,7 @@ class ResumeController {
         });
 
         new OK({
-            message: "Resumes retrieved successfully",
+            message: "User resumes retrieved successfully",
             data: resumes,
         }).send(res);
     };
@@ -269,14 +269,14 @@ class ResumeController {
 
     getPublicResume = async (req: Request, res: Response) => {
         const { shareableLink } = req.params;
-        const { password } = req.body;
+        // const { password } = req.body;
         const clientIp = req.ip || req.headers['x-forwarded-for'] as string || '';
         const userAgent = req.headers['user-agent'] || '';
         const referrer = req.headers['referer'] || '';
 
         const resume = await resumeService.getResumeByShareableLink(
             shareableLink,
-            password,
+            // password,
             {
                 clientIp,
                 userAgent,

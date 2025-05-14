@@ -3,15 +3,15 @@ import resumeSectionController from '~/controllers/resume-section.controller'
 import resumeController from '~/controllers/resume.controller'
 import { accessTokenValidation } from '~/middlewares/auth.middlewares'
 import { checkPremiumTemplateAccess, checkResumeOwnership } from '~/middlewares/access-control.middleware'
+import { generalRateLimiter } from '~/middlewares/rate-limiter.middleware'
 
 const resumeRouter = Router()
 
-// Apply authentication middleware to all resume routes
 resumeRouter.use(accessTokenValidation)
 
 // Resume CRUD operations
 resumeRouter.post('/', checkPremiumTemplateAccess, resumeController.createResume)
-resumeRouter.get('/', resumeController.getUserResumes)
+resumeRouter.get('/', generalRateLimiter(15, 60 * 1000), resumeController.getUserResumes)
 resumeRouter.post('/empty', checkPremiumTemplateAccess, resumeController.createEmptyResume)
 
 // Routes that need resume ownership check

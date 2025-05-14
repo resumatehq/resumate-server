@@ -537,7 +537,7 @@ class ResumeService {
         }
     }
 
-    async getResumeByShareableLink(shareableLink: string, password?: string, viewInfo?: {
+    async getResumeByShareableLink(shareableLink: string, viewInfo?: {
         clientIp?: string,
         userAgent?: string,
         referrer?: string
@@ -579,20 +579,20 @@ class ResumeService {
         }
 
         // Verify password if needed
-        if (resume.metadata.sharingOptions.password && password) {
-            const isPasswordValid = bcrypt.compareSync(password, resume.metadata.sharingOptions.password);
-            if (!isPasswordValid) {
-                throw new ErrorWithStatus({
-                    message: "Invalid password",
-                    status: HTTP_STATUS_CODES.UNAUTHORIZED,
-                });
-            }
-        } else if (resume.metadata.sharingOptions.password) {
-            throw new ErrorWithStatus({
-                message: "Password required to view this resume",
-                status: HTTP_STATUS_CODES.UNAUTHORIZED,
-            });
-        }
+        // if (resume.metadata.sharingOptions.password && password) {
+        //     const isPasswordValid = bcrypt.compareSync(password, resume.metadata.sharingOptions.password);
+        //     if (!isPasswordValid) {
+        //         throw new ErrorWithStatus({
+        //             message: "Invalid password",
+        //             status: HTTP_STATUS_CODES.UNAUTHORIZED,
+        //         });
+        //     }
+        // } else if (resume.metadata.sharingOptions.password) {
+        //     throw new ErrorWithStatus({
+        //         message: "Password required to view this resume",
+        //         status: HTTP_STATUS_CODES.UNAUTHORIZED,
+        //     });
+        // }
 
         // Increment view count
         await databaseServices.resumes.updateOne(
